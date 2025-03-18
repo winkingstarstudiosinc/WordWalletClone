@@ -1,5 +1,6 @@
 import React, {useState, useEffect} from 'react';
 import AsyncStorage from '@react-native-async-storage/async-storage';
+import { useFirebase } from './FirebaseProvider';
 import {
   View,
   StyleSheet,
@@ -48,12 +49,11 @@ import { BannerAd, BannerAdSize, TestIds } from 'react-native-google-mobile-ads'
 
 
 
-
 function WalletFlap( { navigation } ) {
   const {loadStoredData, saveData} = useStorage(); // Updated destructure for storage methods
   const classIdentifier = 'walletFlapWords'; // Unique identifier for this component
 
-  const [words, setWords] = useState([]);
+  const { words, setWords, addWord, editWord, deleteWord } = useFirebase();
   const [selectedCard, setSelectedCard] = useState('Lexicon');
   const [editingIndex, setEditingIndex] = useState(-1);
   const [tempTerm, setTempTerm] = useState('');
@@ -83,22 +83,37 @@ function WalletFlap( { navigation } ) {
 
 
   useEffect(() => {
-    loadStoredData(classIdentifier).then(data => {
-      setWords(data); // Load WalletFlap-specific words
-    });
-  }, [classIdentifier]); // Load data when component mounts
+    const loadWords = async () => {
+        try {
+            const localData = await AsyncStorage.getItem(classIdentifier);
 
-  const [lastSavedWords, setLastSavedWords] = useState(null); // Track the last saved state
+            if (localData) {
+                console.log("💾 Loading words from AsyncStorage...");
+                setWords(JSON.parse(localData));
+            } else {
+                console.log("⚠️ No local data found, waiting for Firestore...");
+            }
+        } catch (error) {
+            console.error("❌ Failed to load words from AsyncStorage:", error);
+        }
+    };
 
-  useEffect(() => {
-    if (
-      words.length > 0 &&
-      JSON.stringify(words) !== JSON.stringify(lastSavedWords)
-    ) {
-      saveData(classIdentifier, words); // Save only if words have changed
-      setLastSavedWords(words); // Update the last saved state
+    loadWords();
+}, [classIdentifier]); // ✅ Only runs once unless `classIdentifier` changes
+
+const [lastSavedWords, setLastSavedWords] = useState(null); 
+
+useEffect(() => {
+    if (words.length > 0 && JSON.stringify(words) !== JSON.stringify(lastSavedWords)) {
+        console.log("💾 Saving words to AsyncStorage...");
+        AsyncStorage.setItem(classIdentifier, JSON.stringify(words))
+            .then(() => {
+                console.log("✅ Data saved successfully!");
+                setLastSavedWords(words);
+            })
+            .catch(error => console.error("❌ Error saving to AsyncStorage:", error));
     }
-  }, [words, saveData, classIdentifier, lastSavedWords]); // Watch for changes
+}, [words]); // ✅ Only runs when words change
 
   useEffect(() => {
     const loadTranslateColor = async () => {
@@ -336,18 +351,16 @@ function WalletFlap( { navigation } ) {
     }
   };
 
-  const addStyledWord = (newWord) => {
-    // Check if the word already exists in the list
+  const addStyledWord = async (newWord) => {
+    // Check for duplicates
     const isDuplicate = words.some(entry => entry.term.toLowerCase() === newWord.term.toLowerCase());
   
     if (isDuplicate) {
-      Alert.alert(
-        'Woops', 
-        'This word already exists within the list! Please enter a different word.'
-      );
-      return; // Stop execution if duplicate is found
+      Alert.alert('Woops', 'This word already exists within the list!');
+      return;
     }
   
+    // 🔥 Apply styling based on selected category
     const termStyle = {
       color: selectedCard === 'Lexicon' ? commonColor 
            : selectedCard === 'Dictionary' ? discoveredColor 
@@ -357,14 +370,24 @@ function WalletFlap( { navigation } ) {
   
     const definitionStyle = { fontStyle: 'italic' };
   
+    // 🔥 Ensure the word entry includes styles
     const newWordEntry = {
-      id: `word-${Date.now()}`, // 🔥 Ensure unique ID for new words
+      id: `word-${Date.now()}`,
+      type: "word",  // 🔥 Ensure this field exists
       ...newWord,
       termStyle,
       definitionStyle,
+      createdAt: new Date(),
     };
   
-    setWords([...words, newWordEntry]);
+    // Save to Firestore
+    await addWord(newWordEntry);
+  
+    // Save to AsyncStorage for offline access
+    const updatedWords = [...words, newWordEntry];
+    await AsyncStorage.setItem(classIdentifier, JSON.stringify(updatedWords));
+  
+    setWords(updatedWords);
   };
 
   const onEditInit = (id, term, definition) => {
@@ -380,47 +403,60 @@ function WalletFlap( { navigation } ) {
     setTempDefinition(definition || ''); // ✅ Keeps definition safe
   };
 
-  const onEditSave = () => {
+  const onEditSave = async () => {
     if (!editingId) {
-      console.error("❌ ERROR: Attempted to save but no editingId is set.");
-      return;
+        console.error("❌ ERROR: Attempted to save but no editingId is set.");
+        return;
     }
-  
+
     const updatedWords = words.map(word =>
-      word.id === editingId
-        ? { ...word, term: tempTerm.trim(), definition: tempDefinition.trim() }
-        : word
+        word.id === editingId
+            ? { ...word, term: tempTerm.trim(), definition: tempDefinition.trim() }
+            : word
     );
-  
+
     console.log("✅ Successfully saved:", { editingId, tempTerm, tempDefinition });
-  
-    setWords(updatedWords);
-    setEditingId(null); // Reset edit mode
+
+    // 🔥 Update Firestore
+    await editWord(editingId, { term: tempTerm.trim(), definition: tempDefinition.trim() });
+
+    // 🔥 Update AsyncStorage
+    await AsyncStorage.setItem(classIdentifier, JSON.stringify(updatedWords));
+
+    // Update state
+    setWords([...updatedWords]); // Ensure React detects change
+    setEditingId(null);
     setTempTerm('');
     setTempDefinition('');
-  };
+};
 
 
 
-  const onDelete = (id) => {
-    console.log(`🟥 onDelete triggered → ID: ${id}`);
-  
-    if (!id) {
+const onDelete = async (id) => {
+  console.log(`🟥 onDelete triggered → ID: ${id}`);
+
+  if (!id) {
       console.error('❌ ERROR: Attempted to delete an undefined ID.');
       return;
-    }
-  
-    const updatedWords = words.filter(word => word.id !== id);
-    setWords(updatedWords);
-  
-    // Ensure that if the deleted word was being edited, reset edit mode
-    if (editingId === id) {
+  }
+
+  // 🔥 Remove from Firestore
+  await deleteWord(id);
+
+  // 🔥 Remove from AsyncStorage
+  const updatedWords = words.filter(word => word.id !== id);
+  await AsyncStorage.setItem(classIdentifier, JSON.stringify(updatedWords));
+
+  // Update state
+  setWords([...updatedWords]);
+
+  // Reset edit mode if the deleted word was being edited
+  if (editingId === id) {
       setEditingId(null);
       setTempTerm('');
       setTempDefinition('');
-    }
-  };
-
+  }
+};
 
   const deleteWordsWithoutId = () => {
     const filteredWords = words.filter(word => word.id); // Only keep words WITH an ID

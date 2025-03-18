@@ -1,104 +1,155 @@
-import React, {useState, useEffect} from 'react';
+import React, { useState, useEffect } from 'react';
 import {
   View,
   TextInput,
-  Button,
-  StyleSheet,
   Alert,
   TouchableOpacity,
   Text,
+  StyleSheet,
 } from 'react-native';
-import {Picker} from '@react-native-picker/picker';
-import {useStorage} from './StorageContext'; // Import useStorage
+import { Picker } from '@react-native-picker/picker';
+import { useFirebase } from './FirebaseProvider'; // ✅ Use Firestore
+import { useStorage } from './StorageContext'; // ✅ Use AsyncStorage
 import { isMediumTallPhone, isCompactMediumPhone, isSmallPhone, isGalaxySPhone, hp, wp } from './DynamicDimensions';
 
-
 function DeviceArea({ onChangeDevice, buttonColor }) {
-  const [selectedDevice, setSelectedDevice] = useState('');
-  const [note, setNote] = useState('');
-  const {saveData, loadStoredData} = useStorage(); // Extract save and load methods from useStorage
+    const [selectedDevice, setSelectedDevice] = useState('');
+    const [note, setNote] = useState('');
+    const [existingNoteId, setExistingNoteId] = useState(null); // ✅ Track Firestore document ID
+    const { editNote, quillEntries, addWord } = useFirebase(); // ✅ Include addWord for first-time saves
+    const { saveData, loadStoredData } = useStorage(); // ✅ Use AsyncStorage
 
-  // Load the saved note only when the component mounts
+    const noteKey = 'MiscellaneousNote'; // Key for AsyncStorage
+
+    // 🔥 Load note from AsyncStorage first, then update with Firestore
+    useEffect(() => {
+      const fetchSavedNote = async () => {
+          try {
+              const savedNote = await loadStoredData(noteKey);
+              if (savedNote) {
+                  setNote(savedNote); // ✅ Load from AsyncStorage first
+                  console.log('📂 Loaded note from AsyncStorage:', savedNote);
+              } else {
+                  console.log('⚠️ No local note found in AsyncStorage.');
+              }
+          } catch (error) {
+              console.error('❌ Error loading note from AsyncStorage:', error);
+          }
+      };
+  
+      fetchSavedNote();
+  }, []); // ✅ Runs once when the component mounts
+  
   useEffect(() => {
-    const fetchSavedNote = async () => {
-      const savedNote = await loadStoredData('MiscellaneousNote'); // Load the saved note
-      if (savedNote) {
-        setNote(savedNote); // Restore the saved note to the TextInput
-        console.log('Loaded Note:', savedNote); // Debug log
-      }
-    };
-    fetchSavedNote();
-  }, []); // Empty dependency array ensures this only runs once on mount
+    if (quillEntries.length > 0) {
+        const existingNote = quillEntries.find(entry => entry.type === 'note');
 
-  // Save note using useStorage
-  const handleSaveNote = async () => {
-    try {
-      const key = 'MiscellaneousNote'; // Key for miscellaneous notes
-      console.log('Saving Note with Key:', key, 'Value:', note); // Debug log
-      await saveData(key, note); // Save the note
-      Alert.alert(
-        'Success, my lady or lad!',
-        'Your miscellaneous notes have been successfully saved!',
-      );
-    } catch (error) {
-      console.error('Failed to save note:', error);
-      Alert.alert('Error', 'Failed to save your note. Please try again.');
+        if (existingNote) {
+            // ✅ Prevent unnecessary overwrites
+            if ((existingNote.content || "").trim() !== (note || "").trim()) { 
+                setNote(existingNote.content || ""); // ✅ Ensure `note` is always a string
+                setExistingNoteId(existingNote.id);
+                console.log('🔥 Loaded note from Firestore:', existingNote.content);
+
+                // ✅ Persist Firestore data into AsyncStorage
+                saveData(noteKey, existingNote.content || "");
+                console.log('💾 Synced Firestore note to AsyncStorage.');
+            }
+        } else {
+            console.log('⚠️ No existing note found in Firestore.');
+        }
     }
+}, [quillEntries]); // ✅ Runs whenever Firestore update
+
+    // 🔥 Save note to Firestore & AsyncStorage
+    const handleSaveNote = async () => {
+      try {
+          console.log('📝 Saving note:', note);
+  
+          if (existingNoteId) {
+              // ✅ Update existing note in Firestore
+              await editNote(existingNoteId, { content: note.trim(), device: selectedDevice });
+              console.log('✅ Note updated in Firestore.');
+          } else {
+              // ✅ First-time save → Create new note in Firestore
+              const newNote = { content: note.trim(), device: selectedDevice, type: 'note' };
+              const newNoteId = await addNote(newNote); // ✅ Call `addNote()` instead of `addWord()`
+  
+              if (newNoteId) {
+                  setExistingNoteId(newNoteId); // ✅ Now this will not be undefined!
+                  console.log('🆕 New note created in Firestore → ID:', newNoteId);
+              } else {
+                  console.warn("⚠️ Failed to retrieve Firestore ID after creating new note.");
+              }
+          }
+  
+          // ✅ Save to AsyncStorage
+          await saveData(noteKey, note.trim());
+          console.log('💾 Note saved to AsyncStorage.');
+  
+          Alert.alert('Success!', 'Your note has been saved to the cloud and offline storage!');
+      } catch (error) {
+          console.error('🔥 Error saving note:', error);
+          Alert.alert('Error', 'Failed to save your note.');
+      }
   };
+
 
   return (
     <View style={styles.deviceArea}>
-      <Picker
-        selectedValue={selectedDevice}
-        style={[styles.dropdownList, {borderColor:buttonColor, borderWidth:2}]}
-        onValueChange={device => {
-          console.log('Device Selected:', device); // Debug log
-          setSelectedDevice(device);
-          onChangeDevice(device); // Propagate change to parent
-        }}>
-        <Picker.Item label={'Devices...'} value={''} />
-        <Picker.Item label={'Fusion Forms'} value={'Fusion Forms'} />
-        <Picker.Item label={'Wit & Wisdom'} value={'Wit & Wisdom'} />
-        <Picker.Item label={'Nicknames'} value={'Nicknames'} />
-        <Picker.Item label={'Terms'} value={'Terms'} />
-        <Picker.Item label={'Alliteration'} value={'Alliteration'} />
-        <Picker.Item label={'Allusion'} value={'Allusion'} />
-        <Picker.Item label={'Allegory'} value={'Allegory'} />
-        <Picker.Item label={'Euphemism'} value={'Euphemism'} />
-        <Picker.Item label={'Hyperbole'} value={'Hyperbole'} />
-        <Picker.Item label={'Idiom'} value={'Idiom'} />
-        <Picker.Item label={'Imagery'} value={'Imagery'} />
-        <Picker.Item label={'Irony'} value={'Irony'} />
-        <Picker.Item label={'Juxtaposition'} value={'Juxtaposition'} />
-        <Picker.Item label={'Metaphor'} value={'Metaphor'} />
-        <Picker.Item label={'Onomatopoeia'} value={'Onomatopoeia'} />
-        <Picker.Item label={'Oxymoron'} value={'Oxymoron'} />
-        <Picker.Item label={'Personification'} value={'Personification'} />
-        <Picker.Item label={'Simile'} value={'Simile'} />
-      </Picker>
-      <TextInput
-        multiline
-        placeholder={'Miscellaneous notes...'}
-        style={[styles.deviceTextarea, {borderColor:buttonColor, borderWidth:3}]}
-        value={note}
-        onChangeText={setNote} // Directly updates the note state
-      />
-      <View style={styles.buttonContainer}>
-        <TouchableOpacity
-          style={{
-            backgroundColor: buttonColor, // Custom color for the button
-            borderColor:'black',
-            borderWidth: 1,
-            padding: wp(2.0),
-            alignItems: 'center',
-            justifyContent: 'center',
-            borderRadius: wp(1.3),
-          }}
-          onPress={handleSaveNote}>
-          <Text style={{color: 'white', fontWeight: 'bold'}}>Save Note</Text>
-        </TouchableOpacity>
-      </View>
-    </View>
+            <Picker
+                selectedValue={selectedDevice}
+                style={[styles.dropdownList, { borderColor: buttonColor, borderWidth: 2 }]}
+                onValueChange={device => {
+                    console.log('Device Selected:', device);
+                    setSelectedDevice(device);
+                    onChangeDevice(device);
+                }}
+            >
+                <Picker.Item label={'Devices...'} value={''} />
+                <Picker.Item label={'Fusion Forms'} value={'Fusion Forms'} />
+                <Picker.Item label={'Wit & Wisdom'} value={'Wit & Wisdom'} />
+                <Picker.Item label={'Nicknames'} value={'Nicknames'} />
+                <Picker.Item label={'Terms'} value={'Terms'} />
+                <Picker.Item label={'Alliteration'} value={'Alliteration'} />
+                <Picker.Item label={'Allusion'} value={'Allusion'} />
+                <Picker.Item label={'Allegory'} value={'Allegory'} />
+                <Picker.Item label={'Euphemism'} value={'Euphemism'} />
+                <Picker.Item label={'Hyperbole'} value={'Hyperbole'} />
+                <Picker.Item label={'Idiom'} value={'Idiom'} />
+                <Picker.Item label={'Imagery'} value={'Imagery'} />
+                <Picker.Item label={'Irony'} value={'Irony'} />
+                <Picker.Item label={'Juxtaposition'} value={'Juxtaposition'} />
+                <Picker.Item label={'Metaphor'} value={'Metaphor'} />
+                <Picker.Item label={'Onomatopoeia'} value={'Onomatopoeia'} />
+                <Picker.Item label={'Oxymoron'} value={'Oxymoron'} />
+                <Picker.Item label={'Personification'} value={'Personification'} />
+                <Picker.Item label={'Simile'} value={'Simile'} />
+            </Picker>
+            <TextInput
+                multiline
+                placeholder={'Miscellaneous notes...'}
+                style={[styles.deviceTextarea, { borderColor: buttonColor, borderWidth: 3 }]}
+                value={note}
+                onChangeText={setNote}
+            />
+            <View style={styles.buttonContainer}>
+                <TouchableOpacity
+                    style={{
+                        backgroundColor: buttonColor,
+                        borderColor: 'black',
+                        borderWidth: 1,
+                        padding: wp(2.0),
+                        alignItems: 'center',
+                        justifyContent: 'center',
+                        borderRadius: wp(1.3),
+                    }}
+                    onPress={handleSaveNote}
+                >
+                    <Text style={{ color: 'white', fontWeight: 'bold' }}>Save Note</Text>
+                </TouchableOpacity>
+            </View>
+        </View>
   );
 }
 
