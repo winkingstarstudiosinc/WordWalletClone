@@ -19,7 +19,6 @@ import { hp, wp, isMediumTallPhone, isCompactMediumPhone, isSmallPhone, isGalaxy
 import { InterstitialAd, AdEventType, TestIds } from 'react-native-google-mobile-ads';
 
 
-
 const Login = ({ navigation }) => {
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
@@ -171,7 +170,6 @@ const Login = ({ navigation }) => {
       }
     };
   }, []);
-
 
 
   const showAdOrNavigate = () => {

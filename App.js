@@ -8,7 +8,7 @@ import SignUp from './Components/SignUp';
 import PasswordReset from './Components/PasswordReset';
 import WalletFlap from './Components/WalletFlap';
 import { StorageProvider } from './Components/StorageContext';
-//import { DeviceProvider } from './Components/DynamicDimensions'; 
+import { FirebaseProvider } from './Components/FirebaseProvider';
 import Orientation from 'react-native-orientation-locker';
 
 const Stack = createNativeStackNavigator();
@@ -32,27 +32,29 @@ const App = () => {
   }, []);
 
   return (
-    <StorageProvider>
-      <NavigationContainer>
-        <View style={styles.globalContainer}>
-          {loading ? (
-            <View style={styles.loadingContainer}>
-              <Text style={styles.loadingText}>Loading...</Text>
-            </View>
-          ) : user ? (
-            <Stack.Navigator screenOptions={{ headerShown: false }}>
-              <Stack.Screen component={WalletFlap} name={'WalletFlap'} />
-            </Stack.Navigator>
-          ) : (
-            <Stack.Navigator screenOptions={{ headerShown: false }}>
-              <Stack.Screen component={Login} name={'Login'} />
-              <Stack.Screen component={SignUp} name={'SignUp'} />
-              <Stack.Screen component={PasswordReset} name={'PasswordReset'} />
-            </Stack.Navigator>
-          )}
-        </View>
-      </NavigationContainer>
-    </StorageProvider>
+    <FirebaseProvider>
+      <StorageProvider>
+        <NavigationContainer>
+          <View style={styles.globalContainer}>
+            {loading ? (
+              <View style={styles.loadingContainer}>
+                <Text style={styles.loadingText}>Loading...</Text>
+              </View>
+            ) : user ? (
+              <Stack.Navigator screenOptions={{ headerShown: false }}>
+                <Stack.Screen component={WalletFlap} name={'WalletFlap'} />
+              </Stack.Navigator>
+            ) : (
+              <Stack.Navigator screenOptions={{ headerShown: false }}>
+                <Stack.Screen component={Login} name={'Login'} />
+                <Stack.Screen component={SignUp} name={'SignUp'} />
+                <Stack.Screen component={PasswordReset} name={'PasswordReset'} />
+              </Stack.Navigator>
+            )}
+          </View>
+        </NavigationContainer>
+      </StorageProvider>
+    </FirebaseProvider>
   );
 };
 
