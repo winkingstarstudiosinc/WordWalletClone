@@ -13,48 +13,55 @@ export const FirebaseProvider = ({ children }) => {
     const [quillEntries, setQuillEntries] = useState([]);
 
     useEffect(() => {
-        console.log("🔄 Setting up Firestore snapshot listener...");
+        console.log("🔄 Setting up Firestore snapshot listeners...");
     
         const wordsCollectionRef = db.collection('wordlists').orderBy("createdAt", "asc");
+        const quillCollectionRef = db.collection('quilllists').orderBy("createdAt", "asc"); // ✅ Restore quilllists listener
     
         const unsubscribeWords = wordsCollectionRef.onSnapshot(snapshot => {
             const fetchedWords = snapshot.docs.map(doc => ({
-                id: doc.id,  // ✅ Ensure Firestore ID is correctly assigned
+                id: doc.id,
                 ...doc.data()
             }));
     
             console.log("🔥 Firestore update detected (wordlists):", fetchedWords);
-    
-            // ✅ Always store the correct Firestore data
             setWords(fetchedWords);
-        }, (error) => {
-            console.error("🔥 Firestore listener error:", error);
+        });
+    
+        const unsubscribeQuill = quillCollectionRef.onSnapshot(snapshot => {
+            const fetchedQuillEntries = snapshot.docs.map(doc => ({
+                id: doc.id,
+                ...doc.data(),
+            }));
+    
+            console.log("🔥 Firestore update detected (quilllists):", fetchedQuillEntries);
+            setQuillEntries(fetchedQuillEntries); // ✅ Sync notes with Firestore
         });
     
         return () => {
             console.log("🛑 Cleaning up Firestore listeners...");
             unsubscribeWords();
+            unsubscribeQuill();
         };
     }, []);
 
-
     useEffect(() => {
-        const fetchInitialWords = async () => {
+        const fetchInitialNotes = async () => {
             try {
-                console.log("🌍 Fetching initial words from Firestore...");
-                const snapshot = await db.collection('wordlists').orderBy("createdAt", "asc").get();
-                const fetchedWords = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+                console.log("🌍 Fetching initial notes from Firestore...");
+                const snapshot = await db.collection('quilllists').orderBy("createdAt", "asc").get();
+                const fetchedQuillEntries = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
     
-                console.log("✅ Initial Firestore words loaded:", fetchedWords);
-                setWords(fetchedWords);  // Ensure words are stored in state at startup
+                console.log("✅ Initial Firestore notes loaded:", fetchedQuillEntries);
+                setQuillEntries(fetchedQuillEntries); // ✅ Ensure notes are stored in state at startup
     
             } catch (error) {
-                console.error("❌ Error fetching initial words:", error);
+                console.error("❌ Error fetching initial notes:", error);
             }
         };
     
-        fetchInitialWords();
-    }, []); 
+        fetchInitialNotes();
+    }, []);
 
 
     const addWord = async (newWord, collectionName = 'wordlists') => {
@@ -142,7 +149,7 @@ export const FirebaseProvider = ({ children }) => {
     const editNote = async (id, updatedNote, collectionName = 'quilllists') => {
         if (!id) {
             console.warn("⚠️ No existing note found, nothing to update.");
-            return; // ✅ If no note exists yet, do nothing.
+            return;
         }
     
         try {
@@ -151,6 +158,13 @@ export const FirebaseProvider = ({ children }) => {
             }
     
             const noteDoc = db.collection(collectionName).doc(id);
+            const docSnapshot = await noteDoc.get();
+    
+            if (!docSnapshot.exists) {
+                console.error(`❌ ERROR: Note with ID ${id} not found in Firestore.`);
+                return;
+            }
+    
             await noteDoc.update(updatedNote);
             console.log("✅ Note updated successfully in Firestore:", updatedNote);
         } catch (error) {
