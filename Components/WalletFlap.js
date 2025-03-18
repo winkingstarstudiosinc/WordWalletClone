@@ -419,7 +419,7 @@ useEffect(() => {
     };
   
     // ✅ Save to Firestore and get the real ID
-    const savedWord = await addWord(newWordEntry);
+    const savedWord = await addWord(newWordEntry, "wordlists");
     if (!savedWord || !savedWord.id) {
         console.error("❌ ERROR: Word was not saved to Firestore properly.");
         return;
@@ -464,11 +464,11 @@ useEffect(() => {
     try {
         console.log("✅ Successfully saved:", { editingId, tempTerm, tempDefinition });
 
-        // ✅ Update Firestore using Firestore's real ID
+        // ✅ Update Firestore using Firestore's real ID and ensure collection is passed
         await editWord(wordToEdit.id, { 
             term: tempTerm.trim(), 
             definition: tempDefinition.trim() 
-        });
+        }, "wordlists");  // ✅ Pass "wordlists" explicitly
 
         console.log("✅ Word successfully updated in Firestore!");
 

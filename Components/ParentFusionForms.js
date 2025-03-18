@@ -1,5 +1,6 @@
 import React, {useState, useEffect, useRef} from 'react';
 import {useStorage} from './StorageContext';
+import { useFirebase } from './FirebaseProvider'; // ✅ Firebase integration
 import {View, Text, Button, Alert, TouchableOpacity} from 'react-native';
 import FusionDefinition from './FusionDefinition';
 import FusionList from './FusionList';
@@ -13,7 +14,8 @@ import {useNotes} from './NotesContext'; // Import the context hook
 import { isCompactMediumPhone, isMediumTallPhone, isSmallPhone, isGalaxySPhone, hp, wp,  } from './DynamicDimensions';
 
 function ParentFusionForms({ onBack, commonColor, addOrangeButton, discoveredColor, createTextColor, buttonColor }) {
-  const [newFusion, setNewFusion] = useState('');
+  const { fusions, setFusions, addWord, editWord, deleteWord } = useFirebase();
+  const [newFusion, setNewFusion] = useState("");
   const [selectedOption, setSelectedOption] = useState('Common');
   const [notesOption, setNotesOption] = useState('Null');
   const [displayMode, setDisplayMode] = useState('List');
@@ -22,7 +24,6 @@ function ParentFusionForms({ onBack, commonColor, addOrangeButton, discoveredCol
   const [editorContent, setEditorContent] = useState('');
   const {loadStoredData, saveData} = useStorage();
   const classIdentifier = 'fusionFormsData';
-  const [fusions, setFusions] = useState([]);
   const [lastSavedFusions, setLastSavedFusions] = useState([]);
   const lastSavedFusionsRef = useRef([]);
   const [notesDataLoaded, setNotesDataLoaded] = useState(false); // New state to track if notes are already loaded
