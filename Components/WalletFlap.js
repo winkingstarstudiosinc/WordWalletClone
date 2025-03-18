@@ -1,6 +1,6 @@
 import React, {useState, useEffect} from 'react';
 import AsyncStorage from '@react-native-async-storage/async-storage';
-import { useFirebase } from './FirebaseProvider';
+import { useFirebase, db } from './FirebaseProvider';
 import {
   View,
   StyleSheet,
@@ -85,21 +85,29 @@ function WalletFlap( { navigation } ) {
   useEffect(() => {
     const loadWords = async () => {
         try {
-            const localData = await AsyncStorage.getItem(classIdentifier);
+            console.log("🌍 Checking Firestore for latest data...");
+            const snapshot = await db.collection('wordlists').orderBy("createdAt", "asc").get();
+            const fetchedWords = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
 
-            if (localData) {
-                console.log("💾 Loading words from AsyncStorage...");
-                setWords(JSON.parse(localData));
+            if (fetchedWords.length > 0) {
+                console.log("🔥 Firestore data found! Updating AsyncStorage...");
+                await AsyncStorage.setItem(classIdentifier, JSON.stringify(fetchedWords));
+                setWords(fetchedWords);
             } else {
-                console.log("⚠️ No local data found, waiting for Firestore...");
+                console.log("⚠️ No Firestore data found, falling back to AsyncStorage...");
+
+                const localData = await AsyncStorage.getItem(classIdentifier);
+                if (localData) {
+                    setWords(JSON.parse(localData));
+                }
             }
         } catch (error) {
-            console.error("❌ Failed to load words from AsyncStorage:", error);
+            console.error("❌ Failed to load words from Firestore or AsyncStorage:", error);
         }
     };
 
     loadWords();
-}, [classIdentifier]); // ✅ Only runs once unless `classIdentifier` changes
+}, [classIdentifier]); // ✅ Runs when classIdentifier changes // ✅ Only runs once unless `classIdentifier` changes
 
 const [lastSavedWords, setLastSavedWords] = useState(null); 
 
@@ -334,6 +342,37 @@ useEffect(() => {
   }, []);
 
 
+  const clearAllEntries = async () => {
+    try {
+        console.log("🛑 Clearing all entries...");
+
+        // 🌍 Step 1: Delete everything from Firestore
+        const snapshot = await db.collection('wordlists').get();
+        const batch = db.batch();
+
+        snapshot.forEach(doc => {
+            batch.delete(doc.ref);
+        });
+
+        await batch.commit();
+        console.log("🔥 All words deleted from Firestore!");
+
+        // 💾 Step 2: Remove all data from AsyncStorage
+        await AsyncStorage.removeItem(classIdentifier);
+        console.log("💾 All words removed from AsyncStorage!");
+
+        // 🔄 Step 3: Clear words state
+        setWords([]);
+        console.log("✅ Screen fully wiped!");
+
+        Alert.alert("Success", "All entries have been wiped clean!");
+    } catch (error) {
+        console.error("❌ Error clearing all entries:", error);
+        Alert.alert("Error", "Failed to clear all entries. Check console for details.");
+    }
+};
+
+
   const handleCardSelect = card => {
     setSelectedCard(card);
     setSelectedDevice(''); // Reset device selection when switching cards
@@ -372,7 +411,6 @@ useEffect(() => {
   
     // 🔥 Ensure the word entry includes styles
     const newWordEntry = {
-      id: `word-${Date.now()}`,
       type: "word",  // 🔥 Ensure this field exists
       ...newWord,
       termStyle,
@@ -380,15 +418,22 @@ useEffect(() => {
       createdAt: new Date(),
     };
   
-    // Save to Firestore
-    await addWord(newWordEntry);
-  
+    // ✅ Save to Firestore and get the real ID
+    const savedWord = await addWord(newWordEntry);
+    if (!savedWord || !savedWord.id) {
+        console.error("❌ ERROR: Word was not saved to Firestore properly.");
+        return;
+    }
+
+    // ✅ Use Firestore's generated ID
+    const newWordWithID = { ...savedWord };
+
     // Save to AsyncStorage for offline access
-    const updatedWords = [...words, newWordEntry];
+    const updatedWords = [...words, newWordWithID];
     await AsyncStorage.setItem(classIdentifier, JSON.stringify(updatedWords));
-  
+
     setWords(updatedWords);
-  };
+};
 
   const onEditInit = (id, term, definition) => {
     console.log(`🔵 onEditInit called → ID: ${id}, Term: ${term}, Definition: ${definition}`);
@@ -409,25 +454,42 @@ useEffect(() => {
         return;
     }
 
-    const updatedWords = words.map(word =>
-        word.id === editingId
-            ? { ...word, term: tempTerm.trim(), definition: tempDefinition.trim() }
-            : word
-    );
+    // 🔥 Find the correct Firestore ID from words list
+    const wordToEdit = words.find(word => word.id === editingId);
+    if (!wordToEdit) {
+        console.error("❌ ERROR: Word to edit not found in local state.");
+        return;
+    }
 
-    console.log("✅ Successfully saved:", { editingId, tempTerm, tempDefinition });
+    try {
+        console.log("✅ Successfully saved:", { editingId, tempTerm, tempDefinition });
 
-    // 🔥 Update Firestore
-    await editWord(editingId, { term: tempTerm.trim(), definition: tempDefinition.trim() });
+        // ✅ Update Firestore using Firestore's real ID
+        await editWord(wordToEdit.id, { 
+            term: tempTerm.trim(), 
+            definition: tempDefinition.trim() 
+        });
 
-    // 🔥 Update AsyncStorage
-    await AsyncStorage.setItem(classIdentifier, JSON.stringify(updatedWords));
+        console.log("✅ Word successfully updated in Firestore!");
 
-    // Update state
-    setWords([...updatedWords]); // Ensure React detects change
-    setEditingId(null);
-    setTempTerm('');
-    setTempDefinition('');
+        // ✅ Update AsyncStorage
+        const updatedWords = words.map(word =>
+            word.id === editingId 
+                ? { ...word, term: tempTerm.trim(), definition: tempDefinition.trim() } 
+                : word
+        );
+
+        await AsyncStorage.setItem(classIdentifier, JSON.stringify(updatedWords));
+
+        // ✅ Update UI
+        setWords(updatedWords);
+        setEditingId(null);
+        setTempTerm('');
+        setTempDefinition('');
+
+    } catch (error) {
+        console.error("🔥 Error updating word in Firestore:", error);
+    }
 };
 
 
@@ -440,21 +502,27 @@ const onDelete = async (id) => {
       return;
   }
 
-  // 🔥 Remove from Firestore
-  await deleteWord(id);
+  try {
+      // 🔥 Step 1: Remove from Firestore first
+      await deleteWord(id);
 
-  // 🔥 Remove from AsyncStorage
-  const updatedWords = words.filter(word => word.id !== id);
-  await AsyncStorage.setItem(classIdentifier, JSON.stringify(updatedWords));
+      // 🔥 Step 2: Remove from AsyncStorage
+      const updatedWords = words.filter(word => word.id !== id);
+      await AsyncStorage.setItem(classIdentifier, JSON.stringify(updatedWords));
 
-  // Update state
-  setWords([...updatedWords]);
+      // 🔥 Step 3: Update state to reflect deletion
+      setWords([...updatedWords]);
 
-  // Reset edit mode if the deleted word was being edited
-  if (editingId === id) {
-      setEditingId(null);
-      setTempTerm('');
-      setTempDefinition('');
+      // 🔥 Step 4: Reset edit mode if the deleted word was being edited
+      if (editingId === id) {
+          setEditingId(null);
+          setTempTerm('');
+          setTempDefinition('');
+      }
+
+      console.log(`✅ Successfully deleted word ${id} from Firestore and AsyncStorage.`);
+  } catch (error) {
+      console.error(`🔥 Error deleting word ${id}:`, error);
   }
 };
 
@@ -779,6 +847,8 @@ const onDelete = async (id) => {
                     onAddWord={addStyledWord}
                     selectedCard={selectedCard}
                   />
+                  <View>
+                  </View>
                   <InputArea onAddWord={addStyledWord} selectedCard={selectedCard} inputAreaColor={inputAreaColor} buttonColor={buttonColor} />
                 <View
                     style={{
@@ -804,7 +874,7 @@ const onDelete = async (id) => {
                     saveData(classIdentifier, words)
                     .then(() => {
                     console.log('Words saved successfully:', words); // Debug log
-                    Alert.alert('Saved', 'Your list has been saved!');
+                    Alert.alert('Saved', 'Your Lexicon list has been saved!');
                     })
                       .catch(err => {
                       console.error('Failed to save words:', err);

@@ -1,7 +1,8 @@
 import React, { createContext, useContext, useState, useEffect } from 'react';
 import firestore from '@react-native-firebase/firestore';
 
-const db = firestore();
+
+export const db = firestore(); // ✅ Ensure Firestore is exported
 
 const FirebaseContext = createContext();
 export const useFirebase = () => useContext(FirebaseContext);
@@ -11,36 +12,31 @@ export const FirebaseProvider = ({ children }) => {
     const [alliterations, setAlliterations] = useState([]);
     const [quillEntries, setQuillEntries] = useState([]);
 
-
     useEffect(() => {
         console.log("🔄 Setting up Firestore snapshot listener...");
-        
+    
         const wordsCollectionRef = db.collection('wordlists').orderBy("createdAt", "asc");
-        const quillCollectionRef = db.collection('quilllists').orderBy("createdAt", "asc");
     
         const unsubscribeWords = wordsCollectionRef.onSnapshot(snapshot => {
-            const fetchedWords = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
-            console.log("🔥 Real-time Firestore update (wordlists):", fetchedWords);
-            setWords(fetchedWords.filter(word => word.type === 'word'));
-            setAlliterations(fetchedWords.filter(alliteration => alliteration.type === 'alliteration'));
-        });
-    
-        const unsubscribeQuill = quillCollectionRef.onSnapshot(snapshot => {
-            const fetchedQuillEntries = snapshot.docs.map(doc => ({
-                id: doc.id,  // ✅ Ensure Firestore ID is included
-                ...doc.data(),
+            const fetchedWords = snapshot.docs.map(doc => ({
+                id: doc.id,  // ✅ Ensure Firestore ID is correctly assigned
+                ...doc.data()
             }));
     
-            console.log("🔥 Real-time Firestore update (quilllists):", fetchedQuillEntries);
-            setQuillEntries(fetchedQuillEntries);
+            console.log("🔥 Firestore update detected (wordlists):", fetchedWords);
+    
+            // ✅ Always store the correct Firestore data
+            setWords(fetchedWords);
+        }, (error) => {
+            console.error("🔥 Firestore listener error:", error);
         });
     
         return () => {
             console.log("🛑 Cleaning up Firestore listeners...");
             unsubscribeWords();
-            unsubscribeQuill();
         };
     }, []);
+
 
     useEffect(() => {
         const fetchInitialWords = async () => {
@@ -60,10 +56,11 @@ export const FirebaseProvider = ({ children }) => {
         fetchInitialWords();
     }, []); 
 
+
     const addWord = async (newWord, collectionName = 'wordlists') => {
         if (!newWord.type) {
             console.error("❌ ERROR: Missing type for new word:", newWord);
-            return;
+            return null;
         }
     
         try {
@@ -74,8 +71,11 @@ export const FirebaseProvider = ({ children }) => {
     
             console.log("✅ Successfully added word to Firestore → ID:", newWordRef.id);
     
+            // ✅ Return Firestore’s correct ID
+            return { ...newWord, id: newWordRef.id };
         } catch (error) {
             console.error("🔥 Error adding word to Firestore:", error);
+            return null;
         }
     };
 
@@ -86,8 +86,16 @@ export const FirebaseProvider = ({ children }) => {
         }
     
         try {
-            const wordDoc = db.collection(collectionName).doc(id);
-            await wordDoc.update(updatedWord);
+            const wordDocRef = db.collection(collectionName).doc(id);
+    
+            // 🔥 Check if the document exists before updating
+            const docSnapshot = await wordDocRef.get();
+            if (!docSnapshot.exists) {
+                console.error(`❌ ERROR: Document with ID ${id} not found in Firestore.`);
+                return;
+            }
+    
+            await wordDocRef.update(updatedWord);
             console.log("✅ Word updated successfully in Firestore:", updatedWord);
         } catch (error) {
             console.error("🔥 Error updating word in Firestore:", error);
@@ -101,7 +109,15 @@ export const FirebaseProvider = ({ children }) => {
         }
     
         try {
-            await db.collection(collectionName).doc(id).delete();
+            const wordDocRef = db.collection(collectionName).doc(id);
+            const docSnapshot = await wordDocRef.get();
+    
+            if (!docSnapshot.exists) {
+                console.warn(`⚠️ WARNING: Word with ID ${id} not found in Firestore.`);
+                return;
+            }
+    
+            await wordDocRef.delete();
             console.log(`🗑️ Successfully deleted word with ID: ${id}`);
         } catch (error) {
             console.error("🔥 Error deleting word from Firestore:", error);
