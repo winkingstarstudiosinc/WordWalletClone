@@ -28,20 +28,15 @@ function WordList({
 
   // ✅ Sort words alphabetically AFTER capitalizing each term
   const sortedWords = [...words]
-  .filter(item => item.type !== 'fusion') // ✅ Exclude Fusion Forms
+  .filter(item => item.type === "Lexicon") // ✅ Only show Lexicon words
   .map(item => {
-    console.log(`🟢 Checking Entry: ID: ${item.id || 'MISSING'}, Term: ${item.term || 'NO TERM'}, Text: ${item.text || 'NO TEXT'}`);
-
-    const content = item.term || item.text || item.word || '';
-    const definition = item.definition || item.meaning || '';
-
-    return {
-      ...item,
-      term: content ? capitalize(content) : 'Unnamed Entry',
-      definition,
-    };
+      return {
+          ...item,
+          term: item.term ? capitalize(item.term) : "Unnamed Entry",
+          definition: item.definition || "",
+      };
   })
-  .sort((a, b) => (a.term || '').localeCompare(b.term || ''));
+  .sort((a, b) => a.term.localeCompare(b.term));
 
   console.log(`🟢 Current editingId: ${editingId}`);
 

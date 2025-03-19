@@ -85,29 +85,37 @@ function WalletFlap( { navigation } ) {
   useEffect(() => {
     const loadWords = async () => {
         try {
-            console.log("🌍 Checking Firestore for latest data...");
-            const snapshot = await db.collection('wordlists').orderBy("createdAt", "asc").get();
-            const fetchedWords = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+            console.log("🌍 Checking Firestore for latest Lexicon words...");
+            const snapshot = await db.collection("wordlists")
+                .where("type", "==", "Lexicon") // ✅ Only fetch Lexicon words
+                .orderBy("createdAt", "asc")
+                .get();
+
+            const fetchedWords = snapshot.docs.map(doc => ({
+                id: doc.id,
+                ...doc.data()
+            }));
+
+            console.log("🔥 Retrieved Lexicon words from Firestore:", fetchedWords);
 
             if (fetchedWords.length > 0) {
-                console.log("🔥 Firestore data found! Updating AsyncStorage...");
+                console.log("💾 Updating AsyncStorage...");
                 await AsyncStorage.setItem(classIdentifier, JSON.stringify(fetchedWords));
                 setWords(fetchedWords);
             } else {
-                console.log("⚠️ No Firestore data found, falling back to AsyncStorage...");
-
+                console.log("⚠️ No Firestore words found, checking AsyncStorage...");
                 const localData = await AsyncStorage.getItem(classIdentifier);
                 if (localData) {
                     setWords(JSON.parse(localData));
                 }
             }
         } catch (error) {
-            console.error("❌ Failed to load words from Firestore or AsyncStorage:", error);
+            console.error("❌ Failed to load words:", error);
         }
     };
 
     loadWords();
-}, [classIdentifier]); // ✅ Runs when classIdentifier changes // ✅ Only runs once unless `classIdentifier` changes
+}, []);
 
 const [lastSavedWords, setLastSavedWords] = useState(null); 
 
@@ -342,37 +350,6 @@ useEffect(() => {
   }, []);
 
 
-  const clearAllEntries = async () => {
-    try {
-        console.log("🛑 Clearing all entries...");
-
-        // 🌍 Step 1: Delete everything from Firestore
-        const snapshot = await db.collection('wordlists').get();
-        const batch = db.batch();
-
-        snapshot.forEach(doc => {
-            batch.delete(doc.ref);
-        });
-
-        await batch.commit();
-        console.log("🔥 All words deleted from Firestore!");
-
-        // 💾 Step 2: Remove all data from AsyncStorage
-        await AsyncStorage.removeItem(classIdentifier);
-        console.log("💾 All words removed from AsyncStorage!");
-
-        // 🔄 Step 3: Clear words state
-        setWords([]);
-        console.log("✅ Screen fully wiped!");
-
-        Alert.alert("Success", "All entries have been wiped clean!");
-    } catch (error) {
-        console.error("❌ Error clearing all entries:", error);
-        Alert.alert("Error", "Failed to clear all entries. Check console for details.");
-    }
-};
-
-
   const handleCardSelect = card => {
     setSelectedCard(card);
     setSelectedDevice(''); // Reset device selection when switching cards
@@ -391,33 +368,43 @@ useEffect(() => {
   };
 
   const addStyledWord = async (newWord) => {
+    console.log("📝 Preparing to add new word:", newWord);
+
+    if (!newWord.term || !newWord.definition) {
+        console.error("❌ ERROR: Missing required fields (term or definition)");
+        return;
+    }
+
     // Check for duplicates
     const isDuplicate = words.some(entry => entry.term.toLowerCase() === newWord.term.toLowerCase());
-  
+
     if (isDuplicate) {
-      Alert.alert('Woops', 'This word already exists within the list!');
-      return;
+        Alert.alert("Woops", "This word already exists within the list!");
+        return;
     }
-  
+
     // 🔥 Apply styling based on selected category
     const termStyle = {
-      color: selectedCard === 'Lexicon' ? commonColor 
-           : selectedCard === 'Dictionary' ? discoveredColor 
-           : selectedCard === 'Translate' ? 'orange' 
-           : null,
+        color: selectedCard === "Lexicon" ? commonColor
+            : selectedCard === "Dictionary" ? discoveredColor
+            : selectedCard === "Translate" ? "orange"
+            : null,
     };
-  
-    const definitionStyle = { fontStyle: 'italic' };
-  
-    // 🔥 Ensure the word entry includes styles
+
+    const definitionStyle = { fontStyle: "italic" };
+
+    // 🔥 Ensure the word entry includes styles and correct type
     const newWordEntry = {
-      type: "word",  // 🔥 Ensure this field exists
-      ...newWord,
-      termStyle,
-      definitionStyle,
-      createdAt: new Date(),
+        term: newWord.term.trim(),
+        definition: newWord.definition.trim(),
+        type: "Lexicon",  // ✅ Ensure this field exists
+        termStyle,
+        definitionStyle,
+        createdAt: new Date(),
     };
-  
+
+    console.log("🚀 Submitting to addWord():", newWordEntry);
+
     // ✅ Save to Firestore and get the real ID
     const savedWord = await addWord(newWordEntry);
     if (!savedWord || !savedWord.id) {
@@ -425,11 +412,10 @@ useEffect(() => {
         return;
     }
 
-    // ✅ Use Firestore's generated ID
-    const newWordWithID = { ...savedWord };
+    console.log("✅ Word saved successfully in Firestore:", savedWord);
 
-    // Save to AsyncStorage for offline access
-    const updatedWords = [...words, newWordWithID];
+    // ✅ Update AsyncStorage for offline access
+    const updatedWords = [...words, savedWord];
     await AsyncStorage.setItem(classIdentifier, JSON.stringify(updatedWords));
 
     setWords(updatedWords);
