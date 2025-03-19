@@ -1,0 +1,70 @@
+{
+  "project_info": {
+    "project_number": "1085965804289",
+    "project_id": "pocketquill-34a0e",
+    "storage_bucket": "pocketquill-34a0e.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:1085965804289:android:ccfc27675b19c2d0b1b100",
+        "android_client_info": {
+          "package_name": "com.winkingstarstudios.wordwallet"
+        }
+      },
+      "oauth_client": [
+        {
+          "client_id": "1085965804289-200dmanqq4g72r3do61cga22li7flfg9.apps.googleusercontent.com",
+          "client_type": 1,
+          "android_info": {
+            "package_name": "com.winkingstarstudios.wordwallet",
+            "certificate_hash": "ab0f97ee106f6e3d15196aa554849559b380b49e"
+          }
+        },
+        {
+          "client_id": "1085965804289-6mi1k7s8n1smj6csgheitsis499h6vmr.apps.googleusercontent.com",
+          "client_type": 1,
+          "android_info": {
+            "package_name": "com.winkingstarstudios.wordwallet",
+            "certificate_hash": "5e8f16062ea3cd2c4a0d547876baa6f38cabf625"
+          }
+        },
+        {
+          "client_id": "1085965804289-mdd66849kkmu0lqu7qurga8f9rrk6cn6.apps.googleusercontent.com",
+          "client_type": 1,
+          "android_info": {
+            "package_name": "com.winkingstarstudios.wordwallet",
+            "certificate_hash": "7be65ab03735f60ac83615eee83efe63b7e42920"
+          }
+        },
+        {
+          "client_id": "1085965804289-iatc2g9bf6sgd730f1o8n1b2gugce8b2.apps.googleusercontent.com",
+          "client_type": 3
+        }
+      ],
+      "api_key": [
+        {
+          "current_key": "AIzaSyBWCM6qaVRlCndwS4cZNkrHzUP2EwL5qME"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": [
+            {
+              "client_id": "1085965804289-9k8ufv8ena097k7o4fl1jkkju20raue7.apps.googleusercontent.com",
+              "client_type": 3
+            },
+            {
+              "client_id": "1085965804289-ib7c10ne5e3ibvsrt8ka37qmt5onv14q.apps.googleusercontent.com",
+              "client_type": 2,
+              "ios_info": {
+                "bundle_id": "com.winkingstarstudios.wordwallet"
+              }
+            }
+          ]
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}
