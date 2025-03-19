@@ -1,6 +1,7 @@
 import React, {useState, useEffect, useRef} from 'react';
 import {useStorage} from './StorageContext';
 import {View, Text, Button, Alert, TouchableOpacity} from 'react-native';
+import { useFirebase, DB } from './FirebaseProvider';
 import FusionDefinition from './FusionDefinition';
 import FusionList from './FusionList';
 import DeviceDropdown from './DeviceDropdown';
@@ -22,7 +23,7 @@ function ParentFusionForms({ onBack, commonColor, addOrangeButton, discoveredCol
   const [editorContent, setEditorContent] = useState('');
   const {loadStoredData, saveData} = useStorage();
   const classIdentifier = 'fusionFormsData';
-  const [fusions, setFusions] = useState([]);
+  const { fusions, addFusion, editFusion, deleteFusion } = useFirebase();  
   const [lastSavedFusions, setLastSavedFusions] = useState([]);
   const lastSavedFusionsRef = useRef([]);
   const [notesDataLoaded, setNotesDataLoaded] = useState(false); // New state to track if notes are already loaded
@@ -146,8 +147,7 @@ function ParentFusionForms({ onBack, commonColor, addOrangeButton, discoveredCol
   };
 
   const onDelete = id => {
-    const updatedFusions = fusions.filter(fusion => fusion.id !== id);
-    setFusions(updatedFusions);
+    deleteFusion(id);
   };
 
   const onEditSave = id => {
@@ -160,7 +160,7 @@ function ParentFusionForms({ onBack, commonColor, addOrangeButton, discoveredCol
         : selectedTextType === 'Discovered'
           ? discoveredColor
           : createTextColor; // Update color based on selected text type
-    setFusions(updatedFusions);
+    editFusion(updatedFusions[editingIndex].id, updatedFusions[editingIndex]);
     setEditingIndex(null); // Exit editing mode
     setTempTerm('');
   };
@@ -182,16 +182,11 @@ function ParentFusionForms({ onBack, commonColor, addOrangeButton, discoveredCol
         category: selectedOption, // Ensure category aligns with selectedOption
         type: 'fusion',
       };
-      setFusions(prevFusions => {
-        const updatedFusions = [...prevFusions, newFusionEntry];
-        console.log(
-          'Added new fusion:',
-          newFusionEntry,
-          'Updated fusions:',
-          updatedFusions,
-        );
-        return updatedFusions;
-      });
+      addFusion(newFusionEntry).then((savedFusion) => {
+        if (savedFusion) {
+            console.log('✅ Fusion successfully saved to Firestore:', savedFusion);
+        }
+    });
       setNewFusion('');
     }
   };

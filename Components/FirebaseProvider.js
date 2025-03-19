@@ -11,6 +11,8 @@ export const FirebaseProvider = ({ children }) => {
     const [words, setWords] = useState([]);
     const [alliterations, setAlliterations] = useState([]);
     const [quillEntries, setQuillEntries] = useState([]);
+    const [fusions, setFusions] = useState([]);
+
 
     useEffect(() => {
         console.log("🔄 Setting up Firestore snapshot listeners...");
@@ -64,6 +66,41 @@ export const FirebaseProvider = ({ children }) => {
     }, []);
 
 
+    useEffect(() => {
+        console.log("🔄 Setting up Firestore snapshot listener for Fusion Forms...");
+    
+        const fusionCollectionRef = db.collection('wordlists')
+            .where("type", "==", "fusion")
+            .orderBy("createdAt", "asc");
+    
+            const unsubscribeFusions = fusionCollectionRef.onSnapshot(
+                (snapshot) => {
+                    if (!snapshot || snapshot.empty) {
+                        console.warn("⚠️ Firestore snapshot is empty or null. No Fusion Forms found.");
+                        setFusions([]); // Set an empty array instead of crashing
+                        return;
+                    }
+            
+                    const fetchedFusions = snapshot.docs.map(doc => ({
+                        id: doc.id,
+                        ...doc.data(),
+                    }));
+            
+                    console.log("🔥 Firestore update detected (Fusion Forms):", fetchedFusions);
+                    setFusions(fetchedFusions);
+                },
+                (error) => {
+                    console.error("❌ Firestore error:", error);
+                }
+            );
+    
+        return () => {
+            console.log("🛑 Cleaning up Firestore listener for Fusion Forms...");
+            unsubscribeFusions();
+        };
+    }, []);
+
+
     const addWord = async (newWord, collectionName = 'wordlists') => {
         if (!newWord.type) {
             console.error("❌ ERROR: Missing type for new word:", newWord);
@@ -71,41 +108,87 @@ export const FirebaseProvider = ({ children }) => {
         }
     
         try {
-            const newWordRef = await db.collection(collectionName).add({ 
-                ...newWord, 
-                createdAt: firestore.FieldValue.serverTimestamp() 
-            });
+            const newWordWithTimestamp = {
+                ...newWord,
+                createdAt: newWord.createdAt || firestore.FieldValue.serverTimestamp(), // ✅ Ensure timestamp is present
+            };
     
+            const newWordRef = await db.collection(collectionName).add(newWordWithTimestamp);
             console.log("✅ Successfully added word to Firestore → ID:", newWordRef.id);
     
-            // ✅ Return Firestore’s correct ID
-            return { ...newWord, id: newWordRef.id };
+            return { ...newWordWithTimestamp, id: newWordRef.id };
         } catch (error) {
             console.error("🔥 Error adding word to Firestore:", error);
             return null;
         }
     };
 
+    const addFusion = async (newFusion) => {
+        if (!newFusion.text || typeof newFusion.text !== "string") {
+            console.error("❌ ERROR: Fusion text is missing or invalid:", newFusion);
+            return null;
+        }
+    
+        try {
+            const fusionWithType = {
+                ...newFusion,
+                type: "fusion",
+                text: newFusion.text.trim(), // ✅ Ensure text is valid
+                createdAt: newFusion.createdAt || firestore.FieldValue.serverTimestamp(),
+            };
+    
+            const newFusionRef = await db.collection('wordlists').add(fusionWithType);
+            console.log(`✅ Added Fusion Form to Firestore → ID:`, newFusionRef.id);
+    
+            return { ...fusionWithType, id: newFusionRef.id };
+        } catch (error) {
+            console.error("🔥 Error adding Fusion Form to Firestore:", error);
+            return null;
+        }
+    };
+
     const editWord = async (id, updatedWord, collectionName = 'wordlists') => {
         if (!id) {
-            console.error("❌ ERROR: editWord was called with an undefined ID.");
-            return;
+            return { success: false, message: "❌ ERROR: editWord was called with an undefined ID." };
         }
     
         try {
             const wordDocRef = db.collection(collectionName).doc(id);
-    
-            // 🔥 Check if the document exists before updating
             const docSnapshot = await wordDocRef.get();
+    
             if (!docSnapshot.exists) {
-                console.error(`❌ ERROR: Document with ID ${id} not found in Firestore.`);
-                return;
+                return { success: false, message: `❌ ERROR: Document with ID ${id} not found in Firestore.` };
             }
     
             await wordDocRef.update(updatedWord);
             console.log("✅ Word updated successfully in Firestore:", updatedWord);
+    
+            return { success: true };
         } catch (error) {
             console.error("🔥 Error updating word in Firestore:", error);
+            return { success: false, message: "🔥 Error updating word in Firestore." };
+        }
+    };
+
+    const editFusion = async (id, updatedFusion) => {
+        if (!id) {
+            console.error("❌ ERROR: editFusion was called with an undefined ID.");
+            return;
+        }
+    
+        try {
+            const fusionDocRef = db.collection('wordlists').doc(id);
+            const docSnapshot = await fusionDocRef.get();
+    
+            if (!docSnapshot.exists) {
+                console.error(`❌ ERROR: Fusion Form with ID ${id} not found in Firestore.`);
+                return;
+            }
+    
+            await fusionDocRef.update(updatedFusion);
+            console.log("✅ Fusion Form updated successfully in Firestore:", updatedFusion);
+        } catch (error) {
+            console.error("🔥 Error updating Fusion Form in Firestore:", error);
         }
     };
 
@@ -124,10 +207,38 @@ export const FirebaseProvider = ({ children }) => {
                 return;
             }
     
+            // ✅ Double-check if it's a Fusion Form before deleting
+            const wordData = docSnapshot.data();
+            if (wordData.type === 'fusion') {
+                console.log(`🗑️ Removing Fusion Form from Firestore → ID: ${id}`);
+            }
+    
             await wordDocRef.delete();
-            console.log(`🗑️ Successfully deleted word with ID: ${id}`);
+            console.log(`✅ Successfully deleted from Firestore → ID: ${id}`);
         } catch (error) {
             console.error("🔥 Error deleting word from Firestore:", error);
+        }
+    };
+
+    const deleteFusion = async (id) => {
+        if (!id) {
+            console.error("❌ ERROR: Attempted to delete an undefined Fusion Form ID.");
+            return;
+        }
+    
+        try {
+            const fusionDocRef = db.collection('wordlists').doc(id);
+            const docSnapshot = await fusionDocRef.get();
+    
+            if (!docSnapshot.exists) {
+                console.warn(`⚠️ WARNING: Fusion Form with ID ${id} not found in Firestore.`);
+                return;
+            }
+    
+            await fusionDocRef.delete();
+            console.log(`🗑️ Successfully deleted Fusion Form with ID: ${id}`);
+        } catch (error) {
+            console.error("🔥 Error deleting Fusion Form from Firestore:", error);
         }
     };
 
@@ -174,7 +285,7 @@ export const FirebaseProvider = ({ children }) => {
 
     return (
         <FirebaseContext.Provider value={{ 
-            words, alliterations, quillEntries, editNote, addWord, editWord, deleteWord, setWords, setQuillEntries, addNote  
+            words, alliterations, quillEntries, fusions, addFusion, editFusion, deleteFusion, editNote, addWord, editWord, deleteWord, setWords, setQuillEntries, addNote  
         }}>
             {children}
         </FirebaseContext.Provider>

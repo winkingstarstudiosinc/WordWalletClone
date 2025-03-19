@@ -20,29 +20,35 @@ function WordList({
   tempDefinition,
   setTempDefinition,
 }) {
-  // ✅ Capitalize first letter of each word
-  const capitalize = (word) => word.charAt(0).toUpperCase() + word.slice(1);
+  // ✅ Capitalize first letter of each word safely
+  const capitalize = (word) => {
+    if (!word || typeof word !== 'string') return ''; // ✅ Prevents undefined errors
+    return word.charAt(0).toUpperCase() + word.slice(1);
+  };
 
   // ✅ Sort words alphabetically AFTER capitalizing each term
   const sortedWords = [...words]
+  .filter(item => item.type !== 'fusion') // ✅ Exclude Fusion Forms
   .map(item => {
-    console.log(`🟢 Checking Word: ID: ${item.id || 'MISSING'}, Term: ${item.term}`);
+    console.log(`🟢 Checking Entry: ID: ${item.id || 'MISSING'}, Term: ${item.term || 'NO TERM'}, Text: ${item.text || 'NO TEXT'}`);
+
+    const content = item.term || item.text || item.word || '';
+    const definition = item.definition || item.meaning || '';
+
     return {
       ...item,
-      term: capitalize(item.term), // ✅ Only capitalize, do NOT assign new ID
+      term: content ? capitalize(content) : 'Unnamed Entry',
+      definition,
     };
   })
-  .sort((a, b) => a.term.localeCompare(b.term));
-
+  .sort((a, b) => (a.term || '').localeCompare(b.term || ''));
 
   console.log(`🟢 Current editingId: ${editingId}`);
-
 
   const deleteWordWithoutId = (index) => {
     setWords(prevWords => prevWords.filter((_, i) => i !== index));
     console.log(`🗑 Deleted word at index: ${index}`);
   };
-
 
   return (
     <View style={styles.wordListContainer}>
@@ -52,60 +58,61 @@ function WordList({
 
           return (
             <View key={item.id || index} style={styles.wordItem}>
-            {editingId && editingId === item.id ? (
-
-              <View style={styles.editControls}>
-                <TextInput
-                  placeholder={'Edit term'}
-                  style={styles.input}
-                  value={tempTerm}
-                  onChangeText={text => setTempTerm(capitalize(text))}
-                />
-                <TextInput
-                  placeholder={'Edit definition'}
-                  style={styles.input}
-                  value={tempDefinition}
-                  onChangeText={text => setTempDefinition(text)}
-                />
-                <View style={styles.saveButtonContainer}>
-                  <Button title={'Save'} onPress={onEditSave} />
-                </View>
-              </View>
-                  ) : (
-              <View style={styles.wordDisplay}>
-                <Text style={styles.wordText}>
-                  {index + 1}.{' '}
-                <Text
-                  style={{
-                  color: item.isFromDictionary
-                  ? '#8a47ff'
-                  : item.termStyle?.color,
-                  }}>
-                    {item.term}
-                </Text>
-                    :{' '}
-                <Text style={{ fontStyle: 'italic', color: 'black' }}>
-                    {item.definition}
-                </Text>
-                </Text>
-                <View style={styles.controlButtons}>
-                  <View style={styles.controlButtonsEdit}>
-                    <Button
-                      color={'#2096F3'}
-                      title={'Ed'}
-                      onPress={() => onEditInit(item.id, item.term, item.definition)}
-                    />
-                  </View>
-                  <View style={styles.controlButtonsDelete}>
-                    <Button
-                      color={'#ff6347'}
-                      title={'Del'}
-                      onPress={() => onDelete(item.id)}
-                    />
+              {editingId && editingId === item.id ? (
+                <View style={styles.editControls}>
+                  <TextInput
+                    placeholder={'Edit term'}
+                    style={styles.input}
+                    value={tempTerm}
+                    onChangeText={text => setTempTerm(capitalize(text))}
+                  />
+                  <TextInput
+                    placeholder={'Edit definition'}
+                    style={styles.input}
+                    value={tempDefinition}
+                    onChangeText={text => setTempDefinition(text)}
+                  />
+                  <View style={styles.saveButtonContainer}>
+                    <Button title={'Save'} onPress={onEditSave} />
                   </View>
                 </View>
-              </View>
-)}
+              ) : (
+                <View style={styles.wordDisplay}>
+                  <Text style={styles.wordText}>
+                    {index + 1}.{' '}
+                    <Text
+                      style={{
+                        color: item.isFromDictionary ? '#8a47ff' : item.termStyle?.color,
+                      }}>
+                      {item.term}
+                    </Text>
+                    {item.definition ? (
+                      <>
+                        :{' '}
+                        <Text style={{ fontStyle: 'italic', color: 'black' }}>
+                          {item.definition}
+                        </Text>
+                      </>
+                    ) : null}
+                  </Text>
+                  <View style={styles.controlButtons}>
+                    <View style={styles.controlButtonsEdit}>
+                      <Button
+                        color={'#2096F3'}
+                        title={'Ed'}
+                        onPress={() => onEditInit(item.id, item.term, item.definition)}
+                      />
+                    </View>
+                    <View style={styles.controlButtonsDelete}>
+                      <Button
+                        color={'#ff6347'}
+                        title={'Del'}
+                        onPress={() => onDelete(item.id)}
+                      />
+                    </View>
+                  </View>
+                </View>
+              )}
             </View>
           );
         })}
