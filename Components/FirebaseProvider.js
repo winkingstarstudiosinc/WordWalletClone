@@ -104,26 +104,8 @@ export const FirebaseProvider = ({ children }) => {
             unsubscribeFusions();
         };
     }, []);
-    
 
-    useEffect(() => {
-        const loadStoredFusions = async () => {
-            try {
-                console.log("🌍 Loading stored Fusion Forms from AsyncStorage...");
-                const storedFusions = await AsyncStorage.getItem('fusionFormsData');
-                if (storedFusions) {
-                    console.log("✅ Fusion Forms loaded from AsyncStorage:", JSON.parse(storedFusions));
-                    setFusions(JSON.parse(storedFusions));
-                } else {
-                    console.warn("⚠️ No Fusion Forms found in AsyncStorage. Firestore will be the source.");
-                }
-            } catch (error) {
-                console.error("❌ Error loading Fusion Forms from AsyncStorage:", error);
-            }
-        };
-    
-        loadStoredFusions();
-    }, []);
+
 
     const addWord = async (newWord, collectionName = 'wordlists') => {
         if (!newWord.type) {

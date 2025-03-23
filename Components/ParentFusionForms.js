@@ -149,6 +149,7 @@ function ParentFusionForms({ onBack, commonColor, addOrangeButton, discoveredCol
         }));
   
         setFusions(fusionList);
+        await AsyncStorage.setItem('fusionFormsData', JSON.stringify(fusionList));
         console.log("✅ Fusion Forms loaded from Firestore:", fusionList);
       } catch (error) {
         console.error("🔥 Error fetching Fusion Forms from Firestore:", error);
@@ -157,6 +158,22 @@ function ParentFusionForms({ onBack, commonColor, addOrangeButton, discoveredCol
   
     fetchFusionsFromFirebase();
   }, []);
+
+
+  useEffect(() => {
+    const saveFusionsToAsyncStorage = async () => {
+      try {
+        await AsyncStorage.setItem('fusionFormsData', JSON.stringify(fusions));
+        console.log('💾 Fusions saved to AsyncStorage.');
+      } catch (error) {
+        console.error('❌ Error saving fusions to AsyncStorage:', error);
+      }
+    };
+  
+    if (fusions && fusions.length > 0) {
+      saveFusionsToAsyncStorage();
+    }
+  }, [fusions]);
 
   
   
