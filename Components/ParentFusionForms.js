@@ -1,7 +1,7 @@
 import React, {useState, useEffect, useRef} from 'react';
 import {useStorage} from './StorageContext';
 import {View, Text, Button, Alert, TouchableOpacity} from 'react-native';
-import { useFirebase, DB } from './FirebaseProvider';
+import { useFirebase, db } from './FirebaseProvider';
 import FusionDefinition from './FusionDefinition';
 import FusionList from './FusionList';
 import DeviceDropdown from './DeviceDropdown';
@@ -28,6 +28,7 @@ function ParentFusionForms({ onBack, commonColor, addOrangeButton, discoveredCol
   const lastSavedFusionsRef = useRef([]);
   const [notesDataLoaded, setNotesDataLoaded] = useState(false); // New state to track if notes are already loaded
   const [selectedTextType, setSelectedTextType] = useState('Common'); // Default Text Type for new fusions
+  const [editingFusionId, setEditingFusionId] = useState(null);
 
   const deepEqual = (a, b) => {
     if (a === b) {
@@ -131,45 +132,95 @@ function ParentFusionForms({ onBack, commonColor, addOrangeButton, discoveredCol
     console.log('Fusions state updated:', fusions);
   }, [fusions]);
 
+
+  useEffect(() => {
+    const fetchFusionsFromFirebase = async () => {
+      try {
+        console.log("☁️ Fetching Fusion Forms from Firestore...");
+        const fusionSnapshot = await db
+          .collection('wordlists')
+          .where('type', '==', 'fusion')
+          .orderBy('createdAt', 'desc')
+          .get();
+  
+        const fusionList = fusionSnapshot.docs.map(doc => ({
+          id: doc.id,
+          ...doc.data(),
+        }));
+  
+        setFusions(fusionList);
+        console.log("✅ Fusion Forms loaded from Firestore:", fusionList);
+      } catch (error) {
+        console.error("🔥 Error fetching Fusion Forms from Firestore:", error);
+      }
+    };
+  
+    fetchFusionsFromFirebase();
+  }, []);
+
+  
+  
   const handleTextTypeChange = newTextType => {
     setSelectedTextType(newTextType);
-    // If editing an existing fusion, update it in the list
+  
     if (editingIndex !== null) {
       const updatedFusions = [...fusions];
-      updatedFusions[editingIndex].textType = newTextType; // Assuming each fusion has a textType property
+      const updatedFusion = {
+        ...updatedFusions[editingIndex],
+        textType: newTextType,
+        style: {
+          ...updatedFusions[editingIndex].style,
+          color:
+            newTextType === 'Common'
+              ? commonColor
+              : newTextType === 'Discovered'
+                ? discoveredColor
+                : createTextColor,
+        },
+      };
+  
+      updatedFusions[editingIndex] = updatedFusion;
       setFusions(updatedFusions);
     }
   };
 
-  const onEditInit = (index, text) => {
+  const onEditInit = (index, text, id) => {
     setEditingIndex(index);
     setTempTerm(text);
+    setSelectedTextType(fusions[index].textType || 'Common');
+    setEditingFusionId(id); // ✅ Create this new state to track the Firestore ID
   };
 
   const onDelete = id => {
     deleteFusion(id);
   };
 
-  const onEditSave = id => {
+  const onEditSave = () => {
+    if (editingIndex === null || !editingFusionId) return;
+  
     const updatedFusions = [...fusions];
-    updatedFusions[editingIndex].text = tempTerm; // Save edited text
-    updatedFusions[editingIndex].textType = selectedTextType; // Save the new Text Type
+    updatedFusions[editingIndex].text = tempTerm;
+    updatedFusions[editingIndex].textType = selectedTextType;
     updatedFusions[editingIndex].style.color =
       selectedTextType === 'Common'
         ? commonColor
         : selectedTextType === 'Discovered'
           ? discoveredColor
-          : createTextColor; // Update color based on selected text type
-    editFusion(updatedFusions[editingIndex].id, updatedFusions[editingIndex]);
-    setEditingIndex(null); // Exit editing mode
+          : createTextColor;
+  
+    const updatedFusion = updatedFusions[editingIndex];
+  
+    setFusions(updatedFusions);
+    editFusion(editingFusionId, updatedFusion); // ✅ Use the correct Firestore ID here
+    setEditingIndex(null);
+    setEditingFusionId(null);
     setTempTerm('');
   };
 
   const handleAddFusion = () => {
-    console.log('Adding new fusion with text type:', selectedOption); // Debugging log
+    console.log('Adding new fusion with text type:', selectedOption);
     if (newFusion.trim()) {
       const newFusionEntry = {
-        id: Date.now().toString(),
         text: newFusion,
         style: {
           color:
@@ -177,16 +228,19 @@ function ParentFusionForms({ onBack, commonColor, addOrangeButton, discoveredCol
               ? commonColor
               : selectedOption === 'Discovered'
                 ? discoveredColor
-                : createTextColor, // Default color for "Create"
+                : createTextColor,
         },
-        category: selectedOption, // Ensure category aligns with selectedOption
+        category: selectedOption,
         type: 'fusion',
       };
+  
       addFusion(newFusionEntry).then((savedFusion) => {
         if (savedFusion) {
-            console.log('✅ Fusion successfully saved to Firestore:', savedFusion);
+          console.log('✅ Fusion successfully saved to Firestore:', savedFusion);
+          // ❌ DO NOT add to setFusions manually here
         }
-    });
+      });
+  
       setNewFusion('');
     }
   };
