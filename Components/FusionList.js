@@ -22,7 +22,8 @@ function FusionList({
   onTextTypeChange,
   commonColor,
   discoveredColor,
-  createTextColor
+  createTextColor,
+  onEditFusion,
 }) {
   const [selectedTextType, setSelectedTextType] = useState('Common'); // Default Text Type
 
@@ -73,11 +74,12 @@ function FusionList({
                     {index + 1}. {item.text || 'No text available'}
                   </Text>
                   <View style={styles.buttonContainer}>
-                    <TouchableOpacity
-                      style={styles.editButton}
-                      onPress={() => onEditInit(index, item.text)}>
-                      <Text style={styles.buttonText}>Ed</Text>
-                    </TouchableOpacity>
+                  <TouchableOpacity
+                    style={styles.editButton}
+                    onPress={() => onEditInit(index, item.text)} // ✅ Ensure it sends index & text
+                  >
+                    <Text style={styles.buttonText}>Ed</Text>
+                  </TouchableOpacity>
                     <View style={styles.gap} />
                     <TouchableOpacity
                       style={styles.deleteButton}

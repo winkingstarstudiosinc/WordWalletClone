@@ -1,5 +1,6 @@
 import React, { createContext, useContext, useState, useEffect } from 'react';
 import firestore from '@react-native-firebase/firestore';
+import AsyncStorage from '@react-native-async-storage/async-storage';
 
 
 export const db = firestore(); // ✅ Ensure Firestore is exported
@@ -68,38 +69,61 @@ export const FirebaseProvider = ({ children }) => {
 
     useEffect(() => {
         console.log("🔄 Setting up Firestore snapshot listener for Fusion Forms...");
-    
+        
         const fusionCollectionRef = db.collection('wordlists')
             .where("type", "==", "fusion")
             .orderBy("createdAt", "asc");
     
-            const unsubscribeFusions = fusionCollectionRef.onSnapshot(
-                (snapshot) => {
-                    if (!snapshot || snapshot.empty) {
-                        console.warn("⚠️ Firestore snapshot is empty or null. No Fusion Forms found.");
-                        setFusions([]); // Set an empty array instead of crashing
-                        return;
-                    }
-            
-                    const fetchedFusions = snapshot.docs.map(doc => ({
-                        id: doc.id,
-                        ...doc.data(),
-                    }));
-            
-                    console.log("🔥 Firestore update detected (Fusion Forms):", fetchedFusions);
-                    setFusions(fetchedFusions);
-                },
-                (error) => {
-                    console.error("❌ Firestore error:", error);
+        const unsubscribeFusions = fusionCollectionRef.onSnapshot(
+            async (snapshot) => {
+                if (!snapshot || snapshot.empty) {
+                    console.warn("⚠️ Firestore snapshot is empty. No Fusion Forms found.");
+                    setFusions([]); // Reset list if empty
+                    return;
                 }
-            );
+    
+                const fetchedFusions = snapshot.docs.map(doc => ({
+                    id: doc.id,
+                    ...doc.data(),
+                }));
+    
+                console.log("🔥 Firestore updated (Fusion Forms):", fetchedFusions);
+    
+                // ✅ Ensure persistence by saving the latest fusions to AsyncStorage
+                await AsyncStorage.setItem('fusionFormsData', JSON.stringify(fetchedFusions));
+    
+                setFusions(fetchedFusions);
+            },
+            (error) => {
+                console.error("❌ Firestore error:", error);
+            }
+        );
     
         return () => {
             console.log("🛑 Cleaning up Firestore listener for Fusion Forms...");
             unsubscribeFusions();
         };
     }, []);
+    
 
+    useEffect(() => {
+        const loadStoredFusions = async () => {
+            try {
+                console.log("🌍 Loading stored Fusion Forms from AsyncStorage...");
+                const storedFusions = await AsyncStorage.getItem('fusionFormsData');
+                if (storedFusions) {
+                    console.log("✅ Fusion Forms loaded from AsyncStorage:", JSON.parse(storedFusions));
+                    setFusions(JSON.parse(storedFusions));
+                } else {
+                    console.warn("⚠️ No Fusion Forms found in AsyncStorage. Firestore will be the source.");
+                }
+            } catch (error) {
+                console.error("❌ Error loading Fusion Forms from AsyncStorage:", error);
+            }
+        };
+    
+        loadStoredFusions();
+    }, []);
 
     const addWord = async (newWord, collectionName = 'wordlists') => {
         if (!newWord.type) {
@@ -185,10 +209,20 @@ export const FirebaseProvider = ({ children }) => {
                 return;
             }
     
-            await fusionDocRef.update(updatedFusion);
-            console.log("✅ Fusion Form updated successfully in Firestore:", updatedFusion);
+            const existingData = docSnapshot.data();
+    
+            // 🔥 Ensure the update merges with existing data
+            const fusionUpdate = {
+                ...existingData,  // ✅ Merge with existing data
+                ...updatedFusion, // ✅ Apply the update
+                updatedAt: firestore.FieldValue.serverTimestamp() // ✅ Track changes
+            };
+    
+            await fusionDocRef.set(fusionUpdate, { merge: true }); // ✅ Ensure merging
+            console.log("✅ Fusion Form textType permanently updated in Firestore:", fusionUpdate.textType);
+    
         } catch (error) {
-            console.error("🔥 Error updating Fusion Form in Firestore:", error);
+            console.error("🔥 Error updating Fusion Form textType in Firestore:", error);
         }
     };
 
@@ -285,7 +319,7 @@ export const FirebaseProvider = ({ children }) => {
 
     return (
         <FirebaseContext.Provider value={{ 
-            words, alliterations, quillEntries, fusions, addFusion, editFusion, deleteFusion, editNote, addWord, editWord, deleteWord, setWords, setQuillEntries, addNote  
+            words, alliterations, quillEntries, fusions, setFusions, addFusion, editFusion, deleteFusion, editNote, addWord, editWord, deleteWord, setWords, setQuillEntries, addNote  
         }}>
             {children}
         </FirebaseContext.Provider>

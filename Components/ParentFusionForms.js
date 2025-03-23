@@ -23,7 +23,7 @@ function ParentFusionForms({ onBack, commonColor, addOrangeButton, discoveredCol
   const [editorContent, setEditorContent] = useState('');
   const {loadStoredData, saveData} = useStorage();
   const classIdentifier = 'fusionFormsData';
-  const { fusions, addFusion, editFusion, deleteFusion } = useFirebase();  
+  const { fusions, setFusions, addFusion, editFusion, deleteFusion } = useFirebase();  
   const [lastSavedFusions, setLastSavedFusions] = useState([]);
   const lastSavedFusionsRef = useRef([]);
   const [notesDataLoaded, setNotesDataLoaded] = useState(false); // New state to track if notes are already loaded
