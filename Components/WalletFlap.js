@@ -369,9 +369,7 @@ useEffect(() => {
   };
 
   const addStyledWord = async (newWord) => {
-
     console.log("📝 Preparing to add new word:", newWord);
-
     console.log("📦 Current value of `words` in state:", words);
   
     if (!newWord.term || !newWord.definition) {
@@ -395,13 +393,6 @@ useEffect(() => {
       );
       return;
     }
-    console.log("📝 Preparing to add new word:", newWord);
-  
-    if (!newWord.term || !newWord.definition) {
-      console.error("❌ ERROR: Term or definition missing");
-      return;
-    }
-
   
     const termStyle = {
       color:
@@ -436,7 +427,7 @@ useEffect(() => {
   
       console.log("✅ Word saved successfully in Firestore:", savedWord);
   
-      setWords(prev => [...prev, savedWord]); // ✅ This is the key line
+      // 🔥 Removed manual setWords — Firestore listener will handle updates
     } catch (err) {
       console.error("🔥 ERROR saving word to Firestore:", err);
     }

@@ -20,23 +20,19 @@ function WordList({
   tempDefinition,
   setTempDefinition,
 }) {
-  // ✅ Capitalize first letter of each word safely
   const capitalize = (word) => {
-    if (!word || typeof word !== 'string') return ''; // ✅ Prevents undefined errors
+    if (!word || typeof word !== 'string') return '';
     return word.charAt(0).toUpperCase() + word.slice(1);
   };
 
-  // ✅ Sort words alphabetically AFTER capitalizing each term
   const sortedWords = [...words]
-  .filter(item => item.type === "Lexicon") // ✅ Only show Lexicon words
-  .map(item => {
-      return {
-          ...item,
-          term: item.term ? capitalize(item.term) : "Unnamed Entry",
-          definition: item.definition || "",
-      };
-  })
-  .sort((a, b) => a.term.localeCompare(b.term));
+    .filter(item => item.type === "Lexicon")
+    .map(item => ({
+      ...item,
+      term: item.term ? capitalize(item.term) : "Unnamed Entry",
+      definition: item.definition || "",
+    }))
+    .sort((a, b) => a.term.localeCompare(b.term));
 
   console.log(`🟢 Current editingId: ${editingId}`);
 
@@ -50,9 +46,11 @@ function WordList({
       <ScrollView contentContainerStyle={styles.scrollContent}>
         {sortedWords.map((item, index) => {
           console.log(`Rendering item → ID: ${item.id}, Term: ${item.term}, Definition: ${item.definition}`);
+          
+          const uniqueKey = item.id ? `id-${item.id}` : `idx-${index}`;
 
           return (
-            <View key={item.id || index} style={styles.wordItem}>
+            <View key={uniqueKey} style={styles.wordItem}>
               {editingId && editingId === item.id ? (
                 <View style={styles.editControls}>
                   <TextInput

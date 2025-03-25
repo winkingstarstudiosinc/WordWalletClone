@@ -129,7 +129,11 @@ export const FirebaseProvider = ({ children }) => {
           const newWordRef = await db.collection('wordlists').add(cleanedWord);
           console.log("✅ Word added to Firestore → ID:", newWordRef.id);
       
-          return { ...cleanedWord, id: newWordRef.id };
+          // ✅ Fetch the fully saved document so we get the resolved `createdAt`
+          const savedDoc = await newWordRef.get();
+          const savedData = savedDoc.data();
+      
+          return { ...savedData, id: newWordRef.id };
         } catch (error) {
           console.error("🔥 Error adding word to Firestore:", error);
           return null;
