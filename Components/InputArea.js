@@ -21,7 +21,7 @@ function InputArea({ onAddWord, selectedCard, inputAreaColor, buttonColor }) {
   
     console.log("Submitting:", term, definition); // Debugging line
     
-    onAddWord({ term, definition, cardType: selectedCard }); 
+    onAddWord({ term, definition, type: selectedCard}); 
     setTerm('');
     setDefinition('');
   };

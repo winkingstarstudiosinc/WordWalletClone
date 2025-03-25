@@ -1,6 +1,7 @@
 import React, {useState, useEffect} from 'react';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { useFirebase, db } from './FirebaseProvider';
+import firestore from '@react-native-firebase/firestore';
 import {
   View,
   StyleSheet,
@@ -368,58 +369,78 @@ useEffect(() => {
   };
 
   const addStyledWord = async (newWord) => {
+
     console.log("📝 Preparing to add new word:", newWord);
 
+    console.log("📦 Current value of `words` in state:", words);
+  
     if (!newWord.term || !newWord.definition) {
-        console.error("❌ ERROR: Missing required fields (term or definition)");
-        return;
+      console.error("❌ ERROR: Term or definition missing");
+      return;
     }
-
-    // Check for duplicates
-    const isDuplicate = words.some(entry => entry.term.toLowerCase() === newWord.term.toLowerCase());
-
+  
+    if (!Array.isArray(words)) {
+      console.error("❌ ERROR: `words` is not an array!", words);
+      return;
+    }
+  
+    const isDuplicate = words.some(
+      (entry) => entry.term.toLowerCase() === newWord.term.toLowerCase()
+    );
+  
     if (isDuplicate) {
-        Alert.alert("Woops", "This word already exists within the list!");
-        return;
+      Alert.alert(
+        "Woops",
+        "This word already exists within the list! Please enter a different word."
+      );
+      return;
+    }
+    console.log("📝 Preparing to add new word:", newWord);
+  
+    if (!newWord.term || !newWord.definition) {
+      console.error("❌ ERROR: Term or definition missing");
+      return;
     }
 
-    // 🔥 Apply styling based on selected category
+  
     const termStyle = {
-        color: selectedCard === "Lexicon" ? commonColor
-            : selectedCard === "Dictionary" ? discoveredColor
-            : selectedCard === "Translate" ? "orange"
-            : null,
+      color:
+        selectedCard === "Lexicon"
+          ? commonColor
+          : selectedCard === "Dictionary"
+          ? discoveredColor
+          : selectedCard === "Translate"
+          ? "orange"
+          : "black", // Fallback
     };
-
+  
     const definitionStyle = { fontStyle: "italic" };
-
-    // 🔥 Ensure the word entry includes styles and correct type
+  
     const newWordEntry = {
-        term: newWord.term.trim(),
-        definition: newWord.definition.trim(),
-        type: "Lexicon",  // ✅ Ensure this field exists
-        termStyle,
-        definitionStyle,
-        createdAt: new Date(),
+      term: newWord.term.trim(),
+      definition: newWord.definition.trim(),
+      type: selectedCard,
+      termStyle,
+      definitionStyle,
+      createdAt: firestore.FieldValue.serverTimestamp(),
     };
-
-    console.log("🚀 Submitting to addWord():", newWordEntry);
-
-    // ✅ Save to Firestore and get the real ID
-    const savedWord = await addWord(newWordEntry);
-    if (!savedWord || !savedWord.id) {
+  
+    try {
+      console.log("🚀 Submitting to Firestore via addWord():", newWordEntry);
+      const savedWord = await addWord(newWordEntry);
+  
+      if (!savedWord || !savedWord.id) {
         console.error("❌ ERROR: Word was not saved to Firestore properly.");
         return;
+      }
+  
+      console.log("✅ Word saved successfully in Firestore:", savedWord);
+  
+      setWords(prev => [...prev, savedWord]); // ✅ This is the key line
+    } catch (err) {
+      console.error("🔥 ERROR saving word to Firestore:", err);
     }
-
-    console.log("✅ Word saved successfully in Firestore:", savedWord);
-
-    // ✅ Update AsyncStorage for offline access
-    const updatedWords = [...words, savedWord];
-    await AsyncStorage.setItem(classIdentifier, JSON.stringify(updatedWords));
-
-    setWords(updatedWords);
-};
+  };
 
   const onEditInit = (id, term, definition) => {
     console.log(`🔵 onEditInit called → ID: ${id}, Term: ${term}, Definition: ${definition}`);

@@ -17,36 +17,39 @@ export const FirebaseProvider = ({ children }) => {
 
     useEffect(() => {
         console.log("🔄 Setting up Firestore snapshot listeners...");
-    
+      
         const wordsCollectionRef = db.collection('wordlists').orderBy("createdAt", "asc");
-        const quillCollectionRef = db.collection('quilllists').orderBy("createdAt", "asc"); // ✅ Restore quilllists listener
-    
+        const quillCollectionRef = db.collection('quilllists').orderBy("createdAt", "asc");
+      
         const unsubscribeWords = wordsCollectionRef.onSnapshot(snapshot => {
-            const fetchedWords = snapshot.docs.map(doc => ({
-                id: doc.id,
-                ...doc.data()
-            }));
-    
-            console.log("🔥 Firestore update detected (wordlists):", fetchedWords);
-            setWords(fetchedWords);
+          const fetchedWords = snapshot.docs.map(doc => ({
+            id: doc.id,
+            ...doc.data()
+          }));
+      
+          console.log("🔥 Firestore update detected (wordlists):", fetchedWords);
+          const lexiconWords = fetchedWords.filter(word => word.type === 'Lexicon');
+          console.log("📘 Filtered Lexicon words (snapshot):", lexiconWords);
+      
+          setWords(lexiconWords);
         });
-    
+      
         const unsubscribeQuill = quillCollectionRef.onSnapshot(snapshot => {
-            const fetchedQuillEntries = snapshot.docs.map(doc => ({
-                id: doc.id,
-                ...doc.data(),
-            }));
-    
-            console.log("🔥 Firestore update detected (quilllists):", fetchedQuillEntries);
-            setQuillEntries(fetchedQuillEntries); // ✅ Sync notes with Firestore
+          const fetchedQuillEntries = snapshot.docs.map(doc => ({
+            id: doc.id,
+            ...doc.data(),
+          }));
+      
+          console.log("🔥 Firestore update detected (quilllists):", fetchedQuillEntries);
+          setQuillEntries(fetchedQuillEntries);
         });
-    
+      
         return () => {
-            console.log("🛑 Cleaning up Firestore listeners...");
-            unsubscribeWords();
-            unsubscribeQuill();
+          console.log("🛑 Cleaning up Firestore listeners...");
+          unsubscribeWords();
+          unsubscribeQuill();
         };
-    }, []);
+      }, []);
 
     useEffect(() => {
         const fetchInitialNotes = async () => {
@@ -107,27 +110,32 @@ export const FirebaseProvider = ({ children }) => {
 
 
 
-    const addWord = async (newWord, collectionName = 'wordlists') => {
-        if (!newWord.type) {
-            console.error("❌ ERROR: Missing type for new word:", newWord);
-            return null;
+    const addWord = async (newWord) => {
+        if (!newWord.term || !newWord.definition || !newWord.type) {
+          console.error("❌ ERROR: Missing term, definition, or type:", newWord);
+          return null;
         }
-    
+      
         try {
-            const newWordWithTimestamp = {
-                ...newWord,
-                createdAt: newWord.createdAt || firestore.FieldValue.serverTimestamp(), // ✅ Ensure timestamp is present
-            };
-    
-            const newWordRef = await db.collection(collectionName).add(newWordWithTimestamp);
-            console.log("✅ Successfully added word to Firestore → ID:", newWordRef.id);
-    
-            return { ...newWordWithTimestamp, id: newWordRef.id };
+          const cleanedWord = {
+            term: newWord.term.trim(),
+            definition: newWord.definition.trim(),
+            type: newWord.type,
+            termStyle: newWord.termStyle || {},
+            definitionStyle: newWord.definitionStyle || {},
+            createdAt: firestore.FieldValue.serverTimestamp(),
+          };
+      
+          const newWordRef = await db.collection('wordlists').add(cleanedWord);
+          console.log("✅ Word added to Firestore → ID:", newWordRef.id);
+      
+          return { ...cleanedWord, id: newWordRef.id };
         } catch (error) {
-            console.error("🔥 Error adding word to Firestore:", error);
-            return null;
+          console.error("🔥 Error adding word to Firestore:", error);
+          return null;
         }
-    };
+      };
+
 
     const addFusion = async (newFusion) => {
         if (!newFusion.text || typeof newFusion.text !== "string") {

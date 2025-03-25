@@ -31,10 +31,19 @@ function FusionList({
     onTextTypeChange(newTextType); // Propagate the change to the parent component
   };
 
+
+  const sortedFusions = [...fusions]
+  .filter(f => f.createdAt?.seconds) // ✅ Skip entries without a resolved timestamp
+  .sort((a, b) => {
+    const aTime = a.createdAt.seconds;
+    const bTime = b.createdAt.seconds;
+    return aTime - bTime;
+  });
+
   return (
     <ScrollView style={styles.container}>
       <View>
-        {fusions.map((item, index) => {
+        {sortedFusions.map((item, index) => {
           const textColor = item.style?.color || 'black'; // Ensure that the color is applied correctly
           return (
             <View key={item.id} style={styles.listItem}>

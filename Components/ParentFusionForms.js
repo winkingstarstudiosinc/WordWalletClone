@@ -21,7 +21,6 @@ function ParentFusionForms({ onBack, commonColor, addOrangeButton, discoveredCol
   const [editingIndex, setEditingIndex] = useState(-1);
   const [tempTerm, setTempTerm] = useState('');
   const [editorContent, setEditorContent] = useState('');
-  const {loadStoredData, saveData} = useStorage();
   const classIdentifier = 'fusionFormsData';
   const { fusions, setFusions, addFusion, editFusion, deleteFusion } = useFirebase();  
   const [lastSavedFusions, setLastSavedFusions] = useState([]);
@@ -29,6 +28,10 @@ function ParentFusionForms({ onBack, commonColor, addOrangeButton, discoveredCol
   const [notesDataLoaded, setNotesDataLoaded] = useState(false); // New state to track if notes are already loaded
   const [selectedTextType, setSelectedTextType] = useState('Common'); // Default Text Type for new fusions
   const [editingFusionId, setEditingFusionId] = useState(null);
+  const { addNote, editNote, quillEntries } = useFirebase();
+  const { saveData, loadStoredData } = useStorage();
+
+  const [existingNoteId, setExistingNoteId] = useState(null);
 
   const deepEqual = (a, b) => {
     if (a === b) {
@@ -175,6 +178,50 @@ function ParentFusionForms({ onBack, commonColor, addOrangeButton, discoveredCol
     }
   }, [fusions]);
 
+  useEffect(() => {
+    const loadLatestRichTextNote = async () => {
+      try {
+        console.log("🔄 Fetching latest rich text note from Firestore on mount...");
+  
+        const snapshot = await db.collection('quilllists')
+          .where('type', '==', 'note') // ✅ Only fetch fusion-form notes
+          .orderBy("createdAt", "desc")
+          .limit(1)
+          .get();
+  
+        if (!snapshot.empty) {
+          const latestNote = snapshot.docs[0].data();
+          setEditorContent(latestNote.content || "<p><br></p>");
+          setExistingNoteId(snapshot.docs[0].id);
+          console.log("✅ Loaded rich text note from Firestore:", latestNote.content);
+  
+          await saveData('FusionNotes', latestNote.content || "<p><br></p>");
+        } else {
+          console.log("⚠️ No rich text notes found in Firestore.");
+        }
+      } catch (error) {
+        console.error("❌ Error fetching rich text note from Firestore:", error);
+      }
+    };
+  
+    loadLatestRichTextNote();
+  }, []);
+
+
+  useEffect(() => {
+    if (quillEntries.length > 0) {
+      const existingNote = quillEntries.find(entry => entry.type === 'note');
+  
+      if (existingNote && existingNote.content.trim() !== editorContent.trim()) {
+        setEditorContent(existingNote.content || "<p><br></p>");
+        setExistingNoteId(existingNote.id);
+  
+        saveData('FusionNotes', existingNote.content || "<p><br></p>");
+        console.log('💾 Synced rich text note from Firestore into AsyncStorage.');
+      }
+    }
+  }, [quillEntries]);
+
   
   
   const handleTextTypeChange = newTextType => {
@@ -311,27 +358,44 @@ function ParentFusionForms({ onBack, commonColor, addOrangeButton, discoveredCol
     }
   };
 
-  const handleSaveEditorContent = () => {
+  const handleSaveEditorContent = async () => {
     console.log('Attempting to save editor content:', editorContent);
-
-    if (typeof editorContent !== 'string' || !editorContent.trim()) {
+  
+    if (typeof editorContent !== 'string' || !editorContent.trim() || editorContent === '<p><br></p>') {
       Alert.alert(
         'Careful there, wordsmith,',
         "we're lacking words to save. Please feel free to write some down.",
       );
       return;
     }
-
-    saveData('FusionNotes', editorContent)
-      .then(() => {
-        console.log('Notes saved successfully:', editorContent);
-        Alert.alert(
-          'Bravo, lad or lassy!',
-          'Your notes have been successfully saved!',
-        );
-      })
-      .catch(err => console.error('Failed to save notes:', err));
+  
+    try {
+      // 🔥 Firestore Save
+      if (existingNoteId) {
+        await editNote(existingNoteId, { content: editorContent.trim() });
+        console.log('✅ Rich text note updated in Firestore.');
+      } else {
+        const newNote = { content: editorContent.trim(), type: 'note' };
+        const newNoteId = await addNote(newNote);
+  
+        if (newNoteId) {
+          setExistingNoteId(newNoteId);
+          console.log('🆕 New rich text note created in Firestore → ID:', newNoteId);
+        } else {
+          console.warn("⚠️ Failed to retrieve Firestore ID after creating new note.");
+        }
+      }
+  
+      // 💾 AsyncStorage Save
+      await saveData('FusionNotes', editorContent.trim());
+      console.log('💾 Rich text saved to AsyncStorage.');
+      Alert.alert('Bravo, lad or lassy!', 'Your notes have been saved to the cloud and offline storage!');
+    } catch (err) {
+      console.error('🔥 Failed to save notes:', err);
+      Alert.alert('Oh no!', 'Something went wrong saving your notes.');
+    }
   };
+
 
   return (
       <View style={{ padding: wp(4), width: '110%', height: '100%'}}> 
