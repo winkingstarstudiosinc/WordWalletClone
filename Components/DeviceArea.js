@@ -136,7 +136,7 @@ function DeviceArea({ onChangeDevice, buttonColor }) {
         <Picker.Item label={'Devices...'} value={''} />
         <Picker.Item label={'Fusion Forms'} value={'Fusion Forms'} />
         <Picker.Item label={'Wit & Wisdom'} value={'Wit & Wisdom'} />
-        <Picker.Item label={'Nicknames'} value={'Nicknames'} />
+        <Picker.Item label={'Rhymes'} value={'Rhymes'} />
         <Picker.Item label={'Terms'} value={'Terms'} />
         <Picker.Item label={'Alliteration'} value={'Alliteration'} />
         <Picker.Item label={'Allusion'} value={'Allusion'} />

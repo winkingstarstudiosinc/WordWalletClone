@@ -202,6 +202,7 @@ function ParentWitWisdom({onBack, commonColor, buttonColor, discoveredColor, cre
         textType: selectedOption,
         category: radioSelection,
         type: 'witwisdom',
+        timestamp: Date.now(), // 🌟 The golden key
       };
   
       addWitWisdom(newWitWisdomEntry).then((savedEntry) => {

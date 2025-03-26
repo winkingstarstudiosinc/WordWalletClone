@@ -83,20 +83,20 @@ function WitWisdomList({
                       setEditTempEntry({ ...editTempEntry, category: newValue })
                       }>
                       <View style={styles.radioGroup}>
-                        <RadioButton value={'Pleasant'} />
-                        <Text>Pleasantt</Text>
+                        <RadioButton value={'Poetry'} />
+                        <Text>Poetry </Text>
                       </View>
                       <View style={styles.radioGroup}>
-                        <RadioButton value={'Snide'} />
-                        <Text>Snidee</Text>
+                        <RadioButton value={'Song'} />
+                        <Text>Song </Text>
                       </View>
                       <View style={styles.radioGroup}>
-                        <RadioButton value={'Playful'} />
-                        <Text>Playfull</Text>
+                        <RadioButton value={'Phrase'} />
+                        <Text>Phrase </Text>
                       </View>
                       <View style={styles.radioGroup}>
-                        <RadioButton value={'Foul'} />
-                        <Text>Foull</Text>
+                        <RadioButton value={'Rap'} />
+                        <Text>Rap </Text>
                       </View>
                       <View style={styles.radioGroup}>
                         <RadioButton value={'None'} />
@@ -115,15 +115,15 @@ function WitWisdomList({
                     }>
                       <View style={styles.radioGroup}>
                         <RadioButton value={'Common'} />
-                        <Text style={{color: commonColor }}>Common</Text>
+                        <Text style={{color: commonColor }}>Common </Text>
                       </View>
                       <View style={styles.radioGroup}>
                         <RadioButton value={'Discovered'} />
-                        <Text style={{color: discoveredColor}}>Discoveredd</Text>
+                        <Text style={{color: discoveredColor}}>Discovered </Text>
                       </View>
                       <View style={styles.radioGroup}>
                         <RadioButton value={'Create'} />
-                        <Text style={{color: createTextColor}}>Createe</Text>
+                        <Text style={{color: createTextColor}}>Create </Text>
                       </View>
                     </RadioButton.Group>
                   </View>
@@ -190,7 +190,7 @@ function WitWisdomList({
 const styles = StyleSheet.create({
   buttonText: {
     color: 'white',
-    fontSize: wp(3.8),
+    fontSize: wp(3.0),
   },
   controlButtons: {
     flexDirection: 'row',

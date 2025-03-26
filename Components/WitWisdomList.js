@@ -23,9 +23,16 @@ function WitWisdomList({
   discoveredColor,
   createTextColor
 }) {
+  // Clone and sort entries by timestamp to preserve order
+  const sortedEntries = [...entries].sort((a, b) => a.timestamp - b.timestamp);
+
+
+
+  
+
   return (
     <ScrollView style={styles.listContainer}>
-      {entries.map((entry, index) => {
+      {sortedEntries.map((entry, index) => {
         const getColorForTextType = textType => {
           switch (textType) {
             case 'Create':
@@ -43,25 +50,24 @@ function WitWisdomList({
           <View key={entry.id} style={styles.entryItem}>
             {editingIndex === index ? (
               <View style={styles.editControls}>
-                {/* First Part Input */}
                 <TextInput
                   value={editTempEntry.firstPart.text}
                   onChangeText={text =>
-                  setEditTempEntry({
-                  ...editTempEntry,
-                  firstPart: { ...editTempEntry.firstPart, text }
-                })
-                }
-              />
-              <TextInput
-                value={editTempEntry.secondPart.text}
-                onChangeText={text =>
-                setEditTempEntry({
-                ...editTempEntry,
-                secondPart: { ...editTempEntry.secondPart, text }
-                })
-                }
-              />
+                    setEditTempEntry({
+                      ...editTempEntry,
+                      firstPart: { ...editTempEntry.firstPart, text }
+                    })
+                  }
+                />
+                <TextInput
+                  value={editTempEntry.secondPart.text}
+                  onChangeText={text =>
+                    setEditTempEntry({
+                      ...editTempEntry,
+                      secondPart: { ...editTempEntry.secondPart, text }
+                    })
+                  }
+                />
                 <View
                   style={{
                     flexDirection: 'row',
@@ -69,54 +75,54 @@ function WitWisdomList({
                     marginVertical: 10,
                   }}>
                   {/* Category Column */}
-                  <View style={{marginHorizontal: 15}}>
+                  <View style={{ marginHorizontal: 15 }}>
                     <Text>Category:</Text>
                     <RadioButton.Group
                       value={editTempEntry.category}
                       onValueChange={newValue =>
-                        setEditTempEntry({...editTempEntry, category: newValue})
+                        setEditTempEntry({ ...editTempEntry, category: newValue })
                       }>
                       <View style={styles.radioGroup}>
                         <RadioButton value={'Wit'} />
-                        <Text>Wit</Text>
+                        <Text>Wit </Text>
                       </View>
                       <View style={styles.radioGroup}>
                         <RadioButton value={'Wisdom'} />
-                        <Text>Wisdom</Text>
+                        <Text>Wisdom </Text>
                       </View>
                       <View style={styles.radioGroup}>
                         <RadioButton value={'None'} />
-                        <Text>Nonee</Text>
+                        <Text>None </Text>
                       </View>
                     </RadioButton.Group>
                   </View>
 
                   {/* Text Column */}
-                  <View style={{marginHorizontal: 20}}>
+                  <View style={{ marginHorizontal: 20 }}>
                     <Text>Text Type:</Text>
                     <RadioButton.Group
                       value={editTempEntry.textType || entry.textType}
                       onValueChange={newValue =>
-                        setEditTempEntry({...editTempEntry, textType: newValue})
+                        setEditTempEntry({ ...editTempEntry, textType: newValue })
                       }>
                       <View style={styles.radioGroup}>
                         <RadioButton value={'Common'} />
-                        <Text style={{color: commonColor}}>Common</Text>
+                        <Text style={{ color: commonColor }}>Common </Text>
                       </View>
                       <View style={styles.radioGroup}>
                         <RadioButton value={'Discovered'} />
-                        <Text style={{color: discoveredColor}}>Discoveredd</Text>
+                        <Text style={{ color: discoveredColor }}>Discovered </Text>
                       </View>
                       <View style={styles.radioGroup}>
                         <RadioButton value={'Create'} />
-                        <Text style={{color: createTextColor}}>Createe</Text>
+                        <Text style={{ color: createTextColor }}>Create </Text>
                       </View>
                     </RadioButton.Group>
                   </View>
                 </View>
                 <View
                   style={{
-                    overFLow: 'hidden',
+                    overflow: 'hidden',
                     borderColor: 'black',
                     borderWidth: 1,
                     borderRadius: 5,
@@ -130,12 +136,12 @@ function WitWisdomList({
               <View style={styles.wordDisplay}>
                 <Text style={styles.wordText}>
                   <Text style={entry.firstPart.style}>
-                      {index + 1}. 
+                    {index + 1}.
                   </Text>
-                    {entry.category && entry.category !== 'None' && (
-                  <Text style={{ fontWeight: 'normal', fontStyle: 'italic', color: 'gray' }}>
-                    {" "}({entry.category}){" "}
-                  </Text>
+                  {entry.category && entry.category !== 'None' && (
+                    <Text style={{ fontWeight: 'normal', fontStyle: 'italic', color: 'gray' }}>
+                      {" "}({entry.category}){" "}
+                    </Text>
                   )}
                   <Text style={entry.firstPart.style}>
                     "{entry.firstPart.text}"
@@ -148,7 +154,7 @@ function WitWisdomList({
                     onPress={() =>
                       onEditInit(index, entry.firstPart.text, entry.secondPart.text, entry.category, entry.textType, entry.id)
                     }
-                    >
+                  >
                     <Text style={styles.buttonText}>Ed </Text>
                   </TouchableOpacity>
                   <View style={styles.gap} />

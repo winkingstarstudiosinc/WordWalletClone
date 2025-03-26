@@ -275,7 +275,7 @@ function ParentNicknames({onBack, commonColor, buttonColor, discoveredColor, cre
                   <View
                     style={{
                       position: 'relative',
-                      right: '10%',
+                      right: '4%',
                       alignItems: 'center',
                     }}>
                     <View
@@ -291,13 +291,13 @@ function ParentNicknames({onBack, commonColor, buttonColor, discoveredColor, cre
                       />
                     </View>
                     <View style={{position: 'relative', right: '15%'}}>
-                      <Text style={{ position: 'relative', bottom: '80%', fontSize: 10, textAlign: 'center', color: 'white' }}>Pleasant </Text>
+                      <Text style={{ position: 'relative', bottom: '80%', fontSize: 10, textAlign: 'center', color: 'white' }}>Poetry </Text>
                     </View>
                   </View>
                   <View
                     style={{
                       position: 'relative',
-                      left: isMediumTallPhone ? '50%' : isCompactMediumPhone ? '60%' : isSmallPhone ? '60%' : isGalaxySPhone ? '65%' : null,
+                      left: isMediumTallPhone ? '80%' : isCompactMediumPhone ? '80%' : isSmallPhone ? '80%' : isGalaxySPhone ? '85%' : null,
                       alignItems: 'center',
                     }}>
                     <View
@@ -313,7 +313,7 @@ function ParentNicknames({onBack, commonColor, buttonColor, discoveredColor, cre
                       />
                     </View>
                     <View style={{ alignItems: 'center' }}>
-                      <Text style={{ position: 'relative', right: '5%', bottom: '80%', fontSize: 10, color: 'white' }}>Snide </Text>
+                      <Text style={{ position: 'relative', right: '5%', bottom: '80%', fontSize: 10, color: 'white' }}>Song </Text>
                     </View>
                   </View>
                 </View>
@@ -338,7 +338,7 @@ function ParentNicknames({onBack, commonColor, buttonColor, discoveredColor, cre
                       />
                     </View>
                     <View>
-                      <Text style={{ position: 'relative', right: '25%', bottom: '120%', fontSize: 10, color: 'white' }}>Playful </Text>
+                      <Text style={{ position: 'relative', right: '25%', bottom: '120%', fontSize: 10, color: 'white' }}>Phrase </Text>
                     </View>
                   </View>
                   <View
@@ -361,14 +361,14 @@ function ParentNicknames({onBack, commonColor, buttonColor, discoveredColor, cre
                       />
                     </View>
                     <View>
-                      <Text style={{ position: 'relative', left: '25%', bottom: '120%', fontSize: 10, color: 'white' }}>Foul </Text>
+                      <Text style={{ position: 'relative', left: '25%', bottom: '120%', fontSize: 10, color: 'white' }}>Rap </Text>
                     </View>
                   </View>
                 </View>
               </View>
             </RadioButton.Group>
           </View>
-          <View style={{position: 'relative', bottom: '9%'}}>
+          <View style={{position: 'relative', bottom: '10%'}}>
             <View
               style={{
                 position: 'relative',

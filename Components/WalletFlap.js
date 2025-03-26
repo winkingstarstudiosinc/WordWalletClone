@@ -755,7 +755,7 @@ const onDelete = async (id) => {
             <ParentFusionForms onBack={handleBack} addOrangeButton={addOrangeButton} commonColor={commonColor} setCommonColor={setCommonColor} discoveredColor={discoveredColor} createTextColor={createTextColor} buttonColor={buttonColor} />
           ) : selectedDevice === 'Wit & Wisdom' ? (
             <ParentWitWisdom onBack={handleBack} addTurquoiseButton={addTurquoiseButton} commonColor={commonColor} setCommonColor={setCommonColor} discoveredColor={discoveredColor} createTextColor={createTextColor} buttonColor={buttonColor}/>
-          ) : selectedDevice === 'Nicknames' ? (
+          ) : selectedDevice === 'Rhymes' ? (
             <ParentNicknames onBack={handleBack} addTurquoiseButton={addTurquoiseButton} commonColor={commonColor} setCommonColor={setCommonColor} discoveredColor={discoveredColor} createTextColor={createTextColor} buttonColor={buttonColor}/>
           ) : selectedDevice === 'Terms' ? (
             <ParentTerms onBack={handleBack} addTurquoiseButton={addTurquoiseButton} commonColor={commonColor} setCommonColor={setCommonColor} discoveredColor={discoveredColor} createTextColor={createTextColor} buttonColor={buttonColor}/>
