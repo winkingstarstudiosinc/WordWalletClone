@@ -89,7 +89,7 @@ function AlliterationList({
                 <View style={styles.buttonContainer}>
                   <TouchableOpacity
                     style={styles.editButton}
-                    onPress={() => onEditInit(index, item.term)}>
+                    onPress={() => onEditInit(index, item.term, item.id)}>
                     <Text style={styles.buttonText}>Ed</Text>
                   </TouchableOpacity>
                   <View style={styles.gap} />
@@ -167,7 +167,7 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     flexDirection: 'row',
     justifyContent: 'space-between',
-    width: '100%',
+    width: '105%',
   },
   wordItem: {
     alignItems: 'center',

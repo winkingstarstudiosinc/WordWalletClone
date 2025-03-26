@@ -1,4 +1,4 @@
-import React, {useState, useEffect} from 'react';
+import React, {useState, useEffect, useRef} from 'react';
 import ConstraintLayout from 'react-native-constraint-layout';
 import {RadioButton} from 'react-native-paper';
 import {useStorage} from './StorageContext';
@@ -9,22 +9,29 @@ import WitWisdomDefinition from './WitWisdomDefinition';
 import WitWisdomList from './WitWisdomList';
 import WitWisdomInput from './WitWisdomInput';
 import DeviceQuill from './DeviceQuill';
+import { useFirebase, db } from './FirebaseProvider';
+import AsyncStorage from '@react-native-async-storage/async-storage';
+import firestore from '@react-native-firebase/firestore';
 import {View, Text, Button, Alert, TouchableOpacity} from 'react-native';
 import { isMediumTallPhone, isCompactMediumPhone, isSmallPhone, isGalaxySPhone, hp, wp } from './DynamicDimensions';
 
 function ParentWitWisdom({onBack, commonColor, buttonColor, discoveredColor, createTextColor, addTurquoiseButton }) {
-  const [newEntry, setNewEntry] = useState({
-    firstPart: { text: '', style: {} },
-    secondPart: { text: '', style: {} },
-    textType: 'Common',  // Default to 'Common'
-    category: '',  // Default to empty
-});
-  const [tempEntry, setTempEntry] = useState({
-    firstPart: { text: '', style: {} },
-    secondPart: { text: '', style: {} },
-    category: '',
-    textType: '',
-});   
+  const { witwisdoms, setWitWisdoms, addWitWisdom, editWitWisdom, deleteWitWisdom } = useFirebase();
+
+// 💠 Local States
+    const [newEntry, setNewEntry] = useState({
+      firstPart: { text: '', style: {} },
+      secondPart: { text: '', style: {} },
+      textType: 'Common',
+      category: '',
+    });
+  const lastSavedWitWisdomsRef = useRef([]);
+    const [tempEntry, setTempEntry] = useState({
+      firstPart: { text: '', style: {} },
+      secondPart: { text: '', style: {} },
+      category: '',
+      textType: '',
+  });   
   const [selectedOption, setSelectedOption] = useState('Common');
   const [notesOption, setNotesOption] = useState('Null');
   const [displayMode, setDisplayMode] = useState('List');
@@ -35,13 +42,62 @@ function ParentWitWisdom({onBack, commonColor, buttonColor, discoveredColor, cre
   const [entries, setEntries] = useState([]); // Initialize with empty array
   const [lastSavedEntries, setLastSavedEntries] = useState(null); // Track the last saved state
   const classIdentifier = 'WitWisdomWords'; // Unique identifier for this component
+  const [lastSavedWitWisdoms, setLastSavedWitWisdoms] = useState([]);
+  const [editingWitWisdomId, setEditingWitWisdomId] = useState(null);
+
+
+
+ const deepEqual = (a, b) => {
+    if (a === b) {
+      return true;
+    }
+    if (
+      typeof a !== 'object' ||
+      typeof b !== 'object' ||
+      a == null ||
+      b == null
+    ) {
+      return false;
+    }
+    const keysA = Object.keys(a);
+    const keysB = Object.keys(b);
+    if (keysA.length !== keysB.length) {
+      return false;
+    }
+    for (const key of keysA) {
+      if (!keysB.includes(key) || !deepEqual(a[key], b[key])) {
+        return false;
+      }
+    }
+    return true;
+  };
+
+
+  const hasWitWisdomChanged = () => {
+    if (witwisdoms.length !== lastSavedWitWisdomsRef.current.length) {
+      return true;
+    }
+    for (let i = 0; i < witwisdoms.length; i++) {
+      if (!deepEqual(witwisdoms[i], lastSavedWitWisdomsRef.current[i])) {
+        return true;
+      }
+    }
+    return false;
+  };
+
 
   // Load entries from AsyncStorage
   useEffect(() => {
     loadStoredData(classIdentifier).then(data => {
-      setEntries(data); // Load Wit & Wisdom entries
+      if (Array.isArray(data)) {
+        setWitWisdoms(data);
+      } else {
+        setWitWisdoms([]);
+      }
     });
   }, [classIdentifier]);
+
+
 
   // Save entries to AsyncStorage whenever they change
   useEffect(() => {
@@ -67,80 +123,185 @@ function ParentWitWisdom({onBack, commonColor, buttonColor, discoveredColor, cre
     }
   }, [displayMode, loadStoredData, editorContent]); // Added editorContent as a dependency
 
+
+  useEffect(() => {
+    const fetchWitWisdomFromFirebase = async () => {
+      try {
+        const snapshot = await db
+          .collection('wordlists')
+          .where('type', '==', 'witwisdom')
+          .orderBy('createdAt', 'desc')
+          .get();
+  
+        const fetchedWitWisdoms = snapshot.docs.map(doc => ({
+          id: doc.id,
+          ...doc.data(),
+        }));
+  
+        setWitWisdoms(fetchedWitWisdoms);
+        await AsyncStorage.setItem('witWisdomData', JSON.stringify(fetchedWitWisdoms));
+  
+        console.log('✅ Wit & Wisdom entries fetched and saved to AsyncStorage.');
+      } catch (error) {
+        console.error('🔥 Error fetching Wit & Wisdom entries from Firestore:', error);
+      }
+    };
+  
+    fetchWitWisdomFromFirebase();
+  }, []);
+
+
+
+
+  useEffect(() => {
+    if (hasWitWisdomChanged()) {
+      saveData(classIdentifier, witwisdoms)
+        .then(() => {
+          lastSavedWitWisdomsRef.current = [...witwisdoms];
+          setLastSavedWitWisdoms([...witwisdoms]);
+        });
+    }
+  }, [witwisdoms, saveData, classIdentifier]);
+
+
+
+
   const handleAddEntry = () => {
-    if (newEntry.firstPart.text.trim() && newEntry.secondPart.text.trim()) {
-      const newEntryObject = {
-        id: Date.now().toString(),
+    const { firstPart, secondPart } = newEntry;
+  
+    console.log('Adding new Wit & Wisdom entry with text type:', selectedOption);
+  
+    if (firstPart.text.trim() && secondPart.text.trim()) {
+      const newWitWisdomEntry = {
         firstPart: {
-          text: newEntry.firstPart.text,
+          text: firstPart.text.trim(),
           style: {
             fontWeight: 'bold',
             fontFamily: 'serif',
-            color: selectedOption === 'Common' ? commonColor : selectedOption === 'Discovered' ? discoveredColor : createTextColor,
+            color:
+              selectedOption === 'Common'
+                ? commonColor
+                : selectedOption === 'Discovered'
+                ? discoveredColor
+                : createTextColor,
           },
         },
         secondPart: {
-          text: newEntry.secondPart.text,
+          text: secondPart.text.trim(),
           style: {
             fontStyle: 'italic',
             fontFamily: 'sans-serif',
-            color: selectedOption === 'Common' ? commonColor : selectedOption === 'Discovered' ? discoveredColor : createTextColor,
+            color:
+              selectedOption === 'Common'
+                ? commonColor
+                : selectedOption === 'Discovered'
+                ? discoveredColor
+                : createTextColor,
           },
         },
-        textType: selectedOption, 
-        category: radioSelection,  // ✅ Ensure category is assigned properly
+        textType: selectedOption,
+        category: radioSelection,
+        type: 'witwisdom',
       };
-      setEntries([...entries, newEntryObject]);
+  
+      addWitWisdom(newWitWisdomEntry).then((savedEntry) => {
+        if (savedEntry) {
+          console.log('✅ Wit & Wisdom entry successfully saved to Firestore:', savedEntry);
+          // No manual setEntries — snapshot listener will populate state
+        }
+      });
+  
       setNewEntry({
         firstPart: { text: '', style: {} },
         secondPart: { text: '', style: {} },
         textType: 'Common',
-        category: '',  // ✅ Reset category for next entry
+        category: '',
       });
-      setRadioSelection(''); // ✅ Reset radio selection
+  
+      setRadioSelection('');
+    } else {
+      console.warn('⚠️ Cannot save: one or both parts of the entry are empty.');
     }
   };
 
-  const handleDelete = id => {
-    setEntries(entries.filter(entry => entry.id !== id));
+
+
+
+  const handleDelete = (id) => {
+    if (!id) {
+      console.warn("⚠️ No Firestore ID found for selected Wit & Wisdom entry.");
+      return;
+    }
+  
+    // 🔥 Delete from Firestore
+    deleteWitWisdom(id);
+  
+    // 🌱 Optional: Instant UI feedback (remove from local state)
+    setWitWisdoms(prevEntries =>
+      prevEntries.filter(entry => entry.id !== id)
+    );
+  
+    console.log(`🗑️ WitWisdom entry with ID ${id} removed from Firestore and local state.`);
   };
 
 
 
-  const handleEditSave = id => {
-    const updatedEntries = entries.map(entry => {
-      if (entry.id === id) {
-        const newColor = tempEntry.textType === 'Common'
-          ? commonColor
-          : tempEntry.textType === 'Discovered'
-            ? discoveredColor
-            : createTextColor;
+  const handleEditSave = () => {
+    if (editingIndex === null || !editingWitWisdomId) {
+      console.warn("⚠️ Edit save called without valid editing index or ID.");
+      return;
+    }
   
-        return {
-          ...entry,
-          firstPart: {
-            text: tempEntry.firstPart.text,
-            style: { fontWeight: 'bold', fontFamily: 'serif', color: newColor },  // ✅ Apply new color
-          },
-          secondPart: {
-            text: tempEntry.secondPart.text,
-            style: { fontStyle: 'italic', fontFamily: 'sans-serif', color: newColor },  // ✅ Apply new color
-          },
-          textType: tempEntry.textType || entry.textType,  // ✅ Ensure textType updates
-          category: tempEntry.category || entry.category,
-        };
-      }
-      return entry;
-    });
+    const updatedEntries = [...witwisdoms];
+    const entryToUpdate = updatedEntries[editingIndex];
   
-    setEntries(updatedEntries);
+    const newColor =
+      tempEntry.textType === 'Common'
+        ? commonColor
+        : tempEntry.textType === 'Discovered'
+          ? discoveredColor
+          : createTextColor;
+  
+    const updatedEntry = {
+      ...entryToUpdate,
+      firstPart: {
+        text: tempEntry.firstPart.text,
+        style: {
+          fontWeight: 'bold',
+          fontFamily: 'serif',
+          color: newColor,
+        },
+      },
+      secondPart: {
+        text: tempEntry.secondPart.text,
+        style: {
+          fontStyle: 'italic',
+          fontFamily: 'sans-serif',
+          color: newColor,
+        },
+      },
+      textType: tempEntry.textType || entryToUpdate.textType,
+      category: tempEntry.category || entryToUpdate.category,
+    };
+  
+    // 🔄 Update local state
+    updatedEntries[editingIndex] = updatedEntry;
+    setWitWisdoms(updatedEntries);
+  
+    // 🔥 Firestore update
+    editWitWisdom(editingWitWisdomId, updatedEntry);
+  
+    // 🎯 Reset editor state
     setEditingIndex(-1);
+    setEditingWitWisdomId(null);
     setTempEntry({
       firstPart: { text: '', style: {} },
       secondPart: { text: '', style: {} },
       textType: '',
       category: '',
     });
+  
+    console.log("✨ WitWisdom edit saved and synced to Firestore:", updatedEntry);
   };
 
   const handleDropdownChange = (value, dropdownType) => {
@@ -165,14 +326,15 @@ function ParentWitWisdom({onBack, commonColor, buttonColor, discoveredColor, cre
     }
   };
 
-  const onEditInit = (index, firstPart, secondPart, category, textType) => {
+  const onEditInit = (index, firstText, secondText, category, textType, id) => {
     setEditingIndex(index);
-    setTempEntry({ 
-      firstPart: { text: firstPart, style: {} },
-      secondPart: { text: secondPart, style: {} },
-      category,
-      textType,
+    setTempEntry({
+      firstPart: { text: firstText, style: {} },
+      secondPart: { text: secondText, style: {} },
+      category: category || '',
+      textType: textType || 'Common',
     });
+    setEditingWitWisdomId(id); // 🔗 Firestore ID
   };
 
   const handleBackOne = () => {
@@ -229,7 +391,7 @@ function ParentWitWisdom({onBack, commonColor, buttonColor, discoveredColor, cre
             <WitWisdomList
               editingIndex={editingIndex}
               editTempEntry={tempEntry}
-              entries={entries}
+              entries={witwisdoms}
               setEditTempEntry={setTempEntry}
               onDelete={handleDelete}
               onEditInit={onEditInit}

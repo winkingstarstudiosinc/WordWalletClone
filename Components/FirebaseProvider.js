@@ -1,6 +1,6 @@
 import React, { createContext, useContext, useState, useEffect } from 'react';
-import firestore from '@react-native-firebase/firestore';
 import AsyncStorage from '@react-native-async-storage/async-storage';
+import firestore from '@react-native-firebase/firestore';
 
 
 export const db = firestore(); // ✅ Ensure Firestore is exported
@@ -13,6 +13,12 @@ export const FirebaseProvider = ({ children }) => {
     const [alliterations, setAlliterations] = useState([]);
     const [quillEntries, setQuillEntries] = useState([]);
     const [fusions, setFusions] = useState([]);
+    const [witwisdoms, setWitWisdoms] = useState([{
+        firstPart: { text: '', style: {} },
+        secondPart: { text: '', style: {} },
+        textType: 'Common',
+        category: '',
+      }]);
 
 
     useEffect(() => {
@@ -50,6 +56,8 @@ export const FirebaseProvider = ({ children }) => {
           unsubscribeQuill();
         };
       }, []);
+      
+
 
     useEffect(() => {
         const fetchInitialNotes = async () => {
@@ -68,6 +76,9 @@ export const FirebaseProvider = ({ children }) => {
     
         fetchInitialNotes();
     }, []);
+
+
+
 
 
     useEffect(() => {
@@ -107,6 +118,68 @@ export const FirebaseProvider = ({ children }) => {
             unsubscribeFusions();
         };
     }, []);
+
+
+
+
+    useEffect(() => {
+        const alliterationCollectionRef = db.collection('wordlists')
+          .where("type", "==", "alliterations")
+          .orderBy("createdAt", "asc");
+      
+        const unsubscribeAlliterations = alliterationCollectionRef.onSnapshot(
+          async (snapshot) => {
+            if (!snapshot || snapshot.empty) {
+              setAlliterations([]); // Reset if no results
+              return;
+            }
+      
+            const fetchedAlliterations = snapshot.docs.map(doc => ({
+              id: doc.id,
+              ...doc.data(),
+            }));
+      
+            await AsyncStorage.setItem('alliterationFormsData', JSON.stringify(fetchedAlliterations));
+            setAlliterations(fetchedAlliterations); // ✅ Alliteration state update
+          },
+          (error) => {
+            console.error("❌ Firestore error (alliterations):", error);
+          }
+        );
+      
+        return () => unsubscribeAlliterations(); // Clean up
+      }, []);
+
+
+
+
+      useEffect(() => {
+        const witWisdomCollectionRef = db.collection('wordlists')
+          .where("type", "==", "witwisdom")
+          .orderBy("createdAt", "asc");
+      
+        const unsubscribeWitWisdoms = witWisdomCollectionRef.onSnapshot(
+          async (snapshot) => {
+            if (!snapshot || snapshot.empty) {
+              setWitWisdoms([]); // Reset if no results
+              return;
+            }
+      
+            const fetchedWitWisdoms = snapshot.docs.map(doc => ({
+              id: doc.id,
+              ...doc.data(),
+            }));
+      
+            await AsyncStorage.setItem('witWisdomData', JSON.stringify(fetchedWitWisdoms));
+            setWitWisdoms(fetchedWitWisdoms); // ✅ WitWisdom state update
+          },
+          (error) => {
+            console.error("❌ Firestore error while fetching witwisdoms:", error);
+          }
+        );
+      
+        return () => unsubscribeWitWisdoms(); // Clean up on unmount
+      }, []);
 
 
 
@@ -165,6 +238,61 @@ export const FirebaseProvider = ({ children }) => {
         }
     };
 
+
+    const addAlliteration = async (newAlliteration) => {
+        if (!newAlliteration.term || typeof newAlliteration.term !== "string") {
+          console.error("❌ ERROR: Alliteration term is missing or invalid:", newAlliteration);
+          return null;
+        }
+      
+        try {
+          const alliterationWithType = {
+            ...newAlliteration,
+            type: "alliterations",
+            term: newAlliteration.term.trim(), // Ensure clean term
+            createdAt: newAlliteration.createdAt || firestore.FieldValue.serverTimestamp(),
+          };
+      
+          const newAlliterationRef = await db.collection('wordlists').add(alliterationWithType);
+          console.log(`✅ Added Alliteration to Firestore → ID:`, newAlliterationRef.id);
+      
+          return { ...alliterationWithType, id: newAlliterationRef.id };
+        } catch (error) {
+          console.error("🔥 Error adding Alliteration to Firestore:", error);
+          return null;
+        }
+      };
+
+
+      const addWitWisdom = async (newEntry) => {
+        if (
+          !newEntry.firstPart?.text ||
+          !newEntry.secondPart?.text ||
+          typeof newEntry.firstPart.text !== "string" ||
+          typeof newEntry.secondPart.text !== "string"
+        ) {
+          console.error("❌ ERROR: WitWisdom entry is missing or invalid:", newEntry);
+          return null;
+        }
+      
+        try {
+          const witWisdomWithType = {
+            ...newEntry,
+            type: "witwisdom",
+            createdAt: newEntry.createdAt || firestore.FieldValue.serverTimestamp(),
+          };
+      
+          const newDocRef = await db.collection('wordlists').add(witWisdomWithType);
+          console.log("✅ Added Wit & Wisdom entry to Firestore → ID:", newDocRef.id);
+      
+          return { ...witWisdomWithType, id: newDocRef.id };
+        } catch (error) {
+          console.error("🔥 Error adding Wit & Wisdom entry to Firestore:", error);
+          return null;
+        }
+      };
+
+
     const editWord = async (id, updatedWord, collectionName = 'wordlists') => {
         if (!id) {
             return { success: false, message: "❌ ERROR: editWord was called with an undefined ID." };
@@ -220,6 +348,71 @@ export const FirebaseProvider = ({ children }) => {
         }
     };
 
+    const editAlliteration = async (id, updatedAlliteration) => {
+        if (!id) {
+          console.error("❌ ERROR: editAlliteration was called with an undefined ID.");
+          return;
+        }
+      
+        try {
+          const alliterationDocRef = db.collection('wordlists').doc(id);
+          const docSnapshot = await alliterationDocRef.get();
+      
+          if (!docSnapshot.exists) {
+            console.error(`❌ ERROR: Alliteration with ID ${id} not found in Firestore.`);
+            return;
+          }
+      
+          const existingData = docSnapshot.data();
+      
+          const alliterationUpdate = {
+            ...existingData,
+            ...updatedAlliteration,
+            updatedAt: firestore.FieldValue.serverTimestamp()
+          };
+      
+          await alliterationDocRef.set(alliterationUpdate, { merge: true });
+          console.log("✅ Alliteration textType permanently updated in Firestore:", alliterationUpdate.textType);
+        } catch (error) {
+          console.error("🔥 Error updating Alliteration in Firestore:", error);
+        }
+      };
+
+
+
+      const editWitWisdom = async (id, updatedWitWisdom) => {
+        if (!id) {
+          console.error("❌ ERROR: editWitWisdom was called with an undefined ID.");
+          return;
+        }
+      
+        try {
+          const witWisdomDocRef = db.collection('wordlists').doc(id);
+          const docSnapshot = await witWisdomDocRef.get();
+      
+          if (!docSnapshot.exists) {
+            console.error(`❌ ERROR: Wit & Wisdom entry with ID ${id} not found in Firestore.`);
+            return;
+          }
+      
+          const existingData = docSnapshot.data();
+      
+          const witWisdomUpdate = {
+            ...existingData,
+            ...updatedWitWisdom,
+            updatedAt: firestore.FieldValue.serverTimestamp(),
+          };
+      
+          await witWisdomDocRef.set(witWisdomUpdate, { merge: true });
+          console.log("✅ Wit & Wisdom entry successfully updated in Firestore:", witWisdomUpdate);
+        } catch (error) {
+          console.error("🔥 Error updating Wit & Wisdom entry in Firestore:", error);
+        }
+      };
+
+
+
+
     const deleteWord = async (id, collectionName = 'wordlists') => {
         if (!id) {
             console.error("❌ ERROR: Attempted to delete an undefined ID.");
@@ -270,6 +463,53 @@ export const FirebaseProvider = ({ children }) => {
         }
     };
 
+
+    const deleteAlliteration = async (id) => {
+        if (!id) {
+          console.error("❌ ERROR: Attempted to delete an undefined Alliteration ID.");
+          return;
+        }
+      
+        try {
+          const alliterationDocRef = db.collection('wordlists').doc(id);
+          const docSnapshot = await alliterationDocRef.get();
+      
+          if (!docSnapshot.exists) {
+            console.warn(`⚠️ WARNING: Alliteration with ID ${id} not found in Firestore.`);
+            return;
+          }
+      
+          await alliterationDocRef.delete();
+          console.log(`🗑️ Successfully deleted Alliteration with ID: ${id}`);
+        } catch (error) {
+          console.error("🔥 Error deleting Alliteration from Firestore:", error);
+        }
+      };
+
+
+      const deleteWitWisdom = async (id) => {
+        if (!id) {
+          console.error("❌ ERROR: Attempted to delete an undefined Wit & Wisdom entry ID.");
+          return;
+        }
+      
+        try {
+          const witWisdomDocRef = db.collection('wordlists').doc(id);
+          const docSnapshot = await witWisdomDocRef.get();
+      
+          if (!docSnapshot.exists) {
+            console.warn(`⚠️ WARNING: Wit & Wisdom entry with ID ${id} not found in Firestore.`);
+            return;
+          }
+      
+          await witWisdomDocRef.delete();
+          console.log(`🗑️ Successfully deleted Wit & Wisdom entry with ID: ${id}`);
+        } catch (error) {
+          console.error("🔥 Error deleting Wit & Wisdom entry from Firestore:", error);
+        }
+      };
+
+
     const addNote = async (newNote) => {
         try {
             const newNoteRef = await db.collection('quilllists').add({ 
@@ -313,7 +553,7 @@ export const FirebaseProvider = ({ children }) => {
 
     return (
         <FirebaseContext.Provider value={{ 
-            words, alliterations, quillEntries, fusions, setFusions, addFusion, editFusion, deleteFusion, editNote, addWord, editWord, deleteWord, setWords, setQuillEntries, addNote  
+            words, alliterations, quillEntries, fusions, alliterations, witwisdoms, setWitWisdoms, addWitWisdom, editWitWisdom, deleteWitWisdom, setAlliterations, addAlliteration, editAlliteration, deleteAlliteration, setFusions, addFusion, editFusion, deleteFusion, editNote, addWord, editWord, deleteWord, setWords, setQuillEntries, addNote  
         }}>
             {children}
         </FirebaseContext.Provider>

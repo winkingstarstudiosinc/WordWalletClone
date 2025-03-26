@@ -1,6 +1,6 @@
-import React, {useState, useEffect} from 'react';
-import {View, Text, Alert, Button, TouchableOpacity} from 'react-native';
-import {useStorage} from './StorageContext';
+import React, {useState, useEffect, useRef} from 'react';
+import { View, Text, Alert, Button, TouchableOpacity} from 'react-native';
+import { useStorage } from './StorageContext';
 import AlliterationDefinition from './AlliterationDefinition';
 import AlliterationList from './AlliterationList';
 import AlliterationInput from './AlliterationInput';
@@ -9,13 +9,16 @@ import DeviceDropdown from './DeviceDropdown';
 import NotesDropdown from './NotesDropdown';
 import DeviceBackButton from './DeviceBackButton';
 import DeviceQuill from './DeviceQuill';
+import { useFirebase, db } from './FirebaseProvider';
+import AsyncStorage from '@react-native-async-storage/async-storage';
+import firestore from '@react-native-firebase/firestore';
 import { isMediumTallPhone, isCompactMediumPhone, isSmallPhone, isGalaxySPhone, hp, wp } from './DynamicDimensions';
 
 function ParentAlliteration({ onBack, commonColor, discoveredColor, createTextColor, buttonColor, addTurquoiseButton }) {
-  const [alliterations, setAlliterations] = useState([]); // Global list of alliterations
+  const { alliterations, setAlliterations, addAlliteration, editAlliteration, deleteAlliteration } = useFirebase();
   const [localAlliterations, setLocalAlliterations] = useState(
     Array(26).fill([]),
-  ); // Grouped by letter
+  ); 
   const [currentLetter, setCurrentLetter] = useState(0); // Selected letter index
   const [editingIndex, setEditingIndex] = useState(-1); // Index for editing
   const [tempAlliteration, setTempAlliteration] = useState(''); // Temporary alliteration for editing
@@ -25,22 +28,68 @@ function ParentAlliteration({ onBack, commonColor, discoveredColor, createTextCo
   const [notesOption, setNotesOption] = useState('Null');
   const [displayMode, setDisplayMode] = useState('List'); // Display mode: List or Notes
   const [editorContent, setEditorContent] = useState(''); // Tracks content of DeviceQuill
-  const {loadStoredData, saveData} = useStorage();
   const classIdentifier = 'AlliterationWords'; // Unique identifier for storage
   const [lastSavedAlliterations, setLastSavedAlliterations] = useState(null); // Tracks last saved state
   const [selectedTextType, setSelectedTextType] = useState('Common'); // Default Text Type for new fusions
   const [isEditing, setIsEditing] = useState(false);
+  const [editingAlliterationId, setEditingAlliterationId] = useState(null);
+  const [newAlliteration, setNewAlliteration] = useState('');
+  const lastSavedAlliterationsRef = useRef([]);
+  const { addNote, editNote, quillEntries } = useFirebase();
+  const { saveData, loadStoredData } = useStorage();
+
+// 🧠 Tracks the ID of an existing Firestore note
+const [existingNoteId, setExistingNoteId] = useState(null);
+
+
+  const deepEqual = (a, b) => {
+    if (a === b) {
+      return true;
+    }
+    if (
+      typeof a !== 'object' ||
+      typeof b !== 'object' ||
+      a == null ||
+      b == null
+    ) {
+      return false;
+    }
+    const keysA = Object.keys(a);
+    const keysB = Object.keys(b);
+    if (keysA.length !== keysB.length) {
+      return false;
+    }
+    for (const key of keysA) {
+      if (!keysB.includes(key) || !deepEqual(a[key], b[key])) {
+        return false;
+      }
+    }
+    return true;
+  };
+
+
 
   // Load alliterations from storage on mount
   useEffect(() => {
-    loadStoredData(classIdentifier).then(data => {
-      if (data && Array.isArray(data)) {
-        setAlliterations(data);
-      } else {
-        setAlliterations([]); // Ensure it's initialized as an empty array
+    const loadAlliterations = async () => {
+      try {
+        const storedData = await AsyncStorage.getItem(classIdentifier);
+        if (storedData) {
+          const parsedData = JSON.parse(storedData);
+          if (Array.isArray(parsedData)) {
+            setAlliterations(parsedData);
+            console.log('📜 Loaded alliterations from AsyncStorage.');
+          }
+        }
+      } catch (error) {
+        console.error('❌ Error loading alliterations from AsyncStorage:', error);
       }
-    });
-  }, [classIdentifier]);
+    };
+  
+    loadAlliterations();
+  }, []);
+
+
 
   useEffect(() => {
     if (
@@ -66,10 +115,97 @@ function ParentAlliteration({ onBack, commonColor, discoveredColor, createTextCo
     }
   }, [alliterations, isEditing, editingIndex]);
 
+
+
+  useEffect(() => {
+    const fetchAlliterationsFromFirebase = async () => {
+      try {
+        const alliterationSnapshot = await db
+          .collection('wordlists')
+          .where('type', '==', 'alliterations')
+          .orderBy('createdAt', 'desc')
+          .get();
+  
+        const alliterationList = alliterationSnapshot.docs.map(doc => ({
+          id: doc.id,
+          ...doc.data(),
+        }));
+  
+        setAlliterations(alliterationList);
+        await AsyncStorage.setItem('alliterationFormsData', JSON.stringify(alliterationList));
+  
+        console.log('🌿 Alliterations successfully fetched and stored.');
+      } catch (error) {
+        console.error('❌ Error fetching alliterations from Firestore:', error);
+      }
+    };
+  
+    fetchAlliterationsFromFirebase();
+  }, []);
+
+
+
+  useEffect(() => {
+    if (hasAlliterationChanged()) {
+      saveData(classIdentifier, alliterations)
+        .then(() => {
+          lastSavedAlliterationsRef.current = [...alliterations];
+          setLastSavedAlliterations([...alliterations]);
+        });
+    }
+  }, [alliterations, saveData, classIdentifier]);
+
+
+  useEffect(() => {
+    const loadLatestAlliterationNote = async () => {
+      try {
+        console.log("🔄 Fetching latest alliteration note from Firestore on mount...");
+  
+        const snapshot = await db.collection('quilllists')
+          .where("type", "==", "alliterationnotes") // 🔑 Filter by type
+          .orderBy("createdAt", "desc")
+          .limit(1)
+          .get();
+  
+        if (!snapshot.empty) {
+          const latestNote = snapshot.docs[0].data();
+          setEditorContent(latestNote.content || "<p><br></p>");
+          setExistingNoteId(snapshot.docs[0].id);
+          console.log("✅ Loaded alliteration note from Firestore:", latestNote.content);
+  
+          await saveData('AlliterationNotes', latestNote.content || "<p><br></p>");
+          console.log("💾 Synced rich text note to AsyncStorage.");
+        } else {
+          console.log("⚠️ No alliteration notes found in Firestore.");
+        }
+      } catch (error) {
+        console.error("❌ Error fetching alliteration note from Firestore:", error);
+      }
+    };
+  
+    loadLatestAlliterationNote();
+  }, []);
+
+
+  useEffect(() => {
+    if (quillEntries.length > 0) {
+      const existingNote = quillEntries.find(entry => entry.type === 'alliterationnotes'); // 🔑 Type filter
+  
+      if (existingNote && existingNote.content.trim() !== editorContent.trim()) {
+        setEditorContent(existingNote.content || "<p><br></p>");
+        setExistingNoteId(existingNote.id);
+  
+        saveData('AlliterationNotes', existingNote.content || "<p><br></p>");
+        console.log('💾 Synced rich text note from Firestore into AsyncStorage.');
+      }
+    }
+  }, [quillEntries]);
+
+
   // Handle adding a new alliteration
   const handleAddClick = () => {
     console.log('Adding new alliteration:', inputAlliteration, selectedOption); // Debug log
-
+  
     if (inputAlliteration.charAt(0).toUpperCase() !== startingLetter) {
       Alert.alert(
         'Ooops...',
@@ -77,13 +213,11 @@ function ParentAlliteration({ onBack, commonColor, discoveredColor, createTextCo
       );
       return;
     }
-
-    // Normalize input to ensure case consistency and remove excess spaces
+  
     const normalizedTerm = inputAlliteration.trim().toLowerCase();
     const capitalizedTerm =
-      normalizedTerm.charAt(0).toUpperCase() + normalizedTerm.slice(1); // Capitalize first letter
-
-    // Dynamically set color based on the selectedOption
+      normalizedTerm.charAt(0).toUpperCase() + normalizedTerm.slice(1);
+  
     const newAlliterationStyle = {
       color:
         selectedOption === 'Common'
@@ -92,82 +226,110 @@ function ParentAlliteration({ onBack, commonColor, discoveredColor, createTextCo
             ? discoveredColor
             : createTextColor,
     };
-
-    const newAlliteration = {
-      term: capitalizedTerm, // Ensure first letter is uppercase
-      type: 'alliteration',
-      textType: selectedOption, // Use selectedOption for new entries
+  
+    const newAlliterationEntry = {
+      term: capitalizedTerm,
+      textType: selectedOption,
+      style: newAlliterationStyle,
+      category: selectedOption,
+      type: 'alliterations',
     };
-
-    // Check if the alliteration already exists before adding
+  
+    // Check for duplicate
     const isDuplicate = alliterations.some(
       alliteration =>
         alliteration.term.trim().toLowerCase() ===
-          newAlliteration.term.trim().toLowerCase() &&
-        alliteration.textType === newAlliteration.textType,
+          newAlliterationEntry.term.trim().toLowerCase() &&
+        alliteration.textType === newAlliterationEntry.textType,
     );
-
-    console.log('Duplicate check result:', isDuplicate); // Debug log
-
+  
+    console.log('Duplicate check result:', isDuplicate);
+  
     if (isDuplicate) {
       Alert.alert('Shchucks!', 'Looks like we got a doppelganger :/');
     } else {
-      // Add the alliteration with the dynamic style
-      setAlliterations(prevAlliterations => [
-        ...prevAlliterations,
-        {...newAlliteration, style: newAlliterationStyle},
-      ]);
-      setInputAlliteration(''); // Reset the input field
+      addAlliteration(newAlliterationEntry).then(savedAlliteration => {
+        if (savedAlliteration) {
+          console.log('✅ Alliteration successfully saved to Firestore:', savedAlliteration);
+          // 🔄 No need to update state here — snapshot listener will handle it
+        }
+      });
+  
+      setInputAlliteration('');
     }
   };
 
-  const onEditInit = (index, text) => {
-    console.log('Initializing edit for index:', index, 'Text:', text); // Debug log
+
+
+
+  const onEditInit = (index, text, id) => {
+    console.log('Initializing edit for index:', index, 'Text:', text, 'ID:', id); // Debug log
     setEditingIndex(index);
     setTempAlliteration(text);
+    setSelectedTextType(alliterations[index].textType || 'Common');
+    setEditingAlliterationId(id); // 🔗 Firestore ID
   };
+
 
   // Handle deleting an alliteration
   const onDelete = index => {
-    setAlliterations(prevAlliterations => {
-      const updatedAlliterations = prevAlliterations.filter(
-        (_, i) => i !== index,
-      );
-      return updatedAlliterations;
-    });
-
-    console.log('Updated Alliterations after delete:', alliterations);
+    const itemToDelete = alliterations[index];
+  
+    if (!itemToDelete?.id) {
+      console.warn("⚠️ No Firestore ID found for selected alliteration.");
+      return;
+    }
+  
+    // 🔥 Firestore deletion
+    deleteAlliteration(itemToDelete.id);
+  
+    // 🧼 Local state update for immediate UI response
+    setAlliterations(prevAlliterations =>
+      prevAlliterations.filter((_, i) => i !== index)
+    );
+  
+    console.log(`🗑️ Deleted Alliteration at index ${index}, ID: ${itemToDelete.id}`);
   };
 
-  const onEditSave = index => {
-    setIsEditing(true); // Start editing process
 
+
+  const onEditSave = index => {
+    if (editingIndex === null || editingAlliterationId === null) return;
+  
+    setIsEditing(true); // Start editing process
+  
     const updatedAlliterations = [...alliterations];
     const wordToEdit = updatedAlliterations[index];
-
-    // Special handling for the first entry
-    if (!wordToEdit && index === 0) {
-      console.log('First entry detected during edit.');
-      updatedAlliterations[index] = {
-        term: tempAlliteration,
-        type: 'alliteration',
-      };
-    } else if (wordToEdit) {
-      updatedAlliterations[index] = {
-        ...wordToEdit,
-        term: tempAlliteration, // Update only the term
-      };
-    }
-
+  
+    const updatedAlliteration = {
+      ...wordToEdit,
+      term: tempAlliteration,
+      textType: selectedTextType,
+      style: {
+        ...wordToEdit?.style,
+        color:
+          selectedTextType === 'Common'
+            ? commonColor
+            : selectedTextType === 'Discovered'
+              ? discoveredColor
+              : createTextColor,
+      },
+    };
+  
+    updatedAlliterations[index] = updatedAlliteration;
     setAlliterations(updatedAlliterations);
-
-    console.log('Before edit:', alliterations);
-    console.log('After edit:', updatedAlliterations);
-
+  
+    // 🔥 Firestore update
+    editAlliteration(editingAlliterationId, updatedAlliteration);
+  
+    console.log('📜 Before edit:', alliterations);
+    console.log('✅ After edit:', updatedAlliterations);
+  
     setEditingIndex(-1);
+    setEditingAlliterationId(null);
     setTempAlliteration('');
-
-    setTimeout(() => setIsEditing(false), 200); // End editing process after 200ms to ensure stability
+  
+    setTimeout(() => setIsEditing(false), 200); // Graceful exit from edit mode
   };
 
   const handleDropdownChange = (value, dropdownType) => {
@@ -201,17 +363,53 @@ function ParentAlliteration({ onBack, commonColor, discoveredColor, createTextCo
     }
   };
 
-  const handleSaveEditorContent = () => {
-    if (!editorContent.trim()) {
+  const handleSaveEditorContent = async () => {
+    console.log('Attempting to save editor content:', editorContent);
+  
+    if (
+      typeof editorContent !== 'string' ||
+      !editorContent.trim() ||
+      editorContent === '<p><br></p>'
+    ) {
       Alert.alert(
-        'Beep beep beep!',
-        'Have you thought about entering some goods first?',
+        'Careful there, wordsmith,',
+        "we're lacking words to save. Please feel free to write some down.",
       );
       return;
     }
-    saveData('AlliterationNotes', editorContent)
-      .then(() => {})
-      .catch(err => console.error('Failed to save notes:', err));
+  
+    try {
+      // 🔥 Firestore Save
+      if (existingNoteId) {
+        await editNote(existingNoteId, { content: editorContent.trim() });
+        console.log('✅ Rich text note updated in Firestore.');
+      } else {
+        const newNote = {
+          content: editorContent.trim(),
+          type: 'alliterationnotes', // 🔑 Alliteration Notes Identifier
+        };
+        const newNoteId = await addNote(newNote);
+  
+        if (newNoteId) {
+          setExistingNoteId(newNoteId);
+          console.log('🆕 New alliteration note created in Firestore → ID:', newNoteId);
+        } else {
+          console.warn("⚠️ Failed to retrieve Firestore ID after creating new note.");
+        }
+      }
+  
+      // 💾 AsyncStorage Save
+      await saveData('AlliterationNotes', editorContent.trim());
+      console.log('💾 Alliteration note saved to AsyncStorage.');
+  
+      Alert.alert(
+        'Bravo, bard!',
+        'Your alliterative musings have been preserved in both the cloud and the scroll.',
+      );
+    } catch (err) {
+      console.error('🔥 Failed to save alliteration notes:', err);
+      Alert.alert('Oh no!', 'Something went wrong saving your notes.');
+    }
   };
 
   const handleBackOne = () => {
@@ -239,10 +437,11 @@ function ParentAlliteration({ onBack, commonColor, discoveredColor, createTextCo
   const handleTextTypeChange = (newTextType, index) => {
     if (editingIndex === index) {
       const updatedAlliterations = [...alliterations];
-      updatedAlliterations[index] = {
-        ...updatedAlliterations[index],
+      const updatedAlliteration = {
+        ...updatedAlliterations[editingIndex],
         textType: newTextType,
         style: {
+          ...updatedAlliterations[editingIndex].style,
           color:
             newTextType === 'Common'
               ? commonColor
@@ -251,9 +450,31 @@ function ParentAlliteration({ onBack, commonColor, discoveredColor, createTextCo
                 : createTextColor,
         },
       };
-      setAlliterations(updatedAlliterations); // Update the list with the new text type
-      setSelectedTextType(newTextType); // Sync the selected text type
+  
+      updatedAlliterations[editingIndex] = updatedAlliteration;
+      setAlliterations(updatedAlliterations);
+      setSelectedTextType(newTextType);
+  
+      // 🔥 Firestore sync if editing a saved entry
+      if (editingAlliterationId) {
+        editAlliteration(editingAlliterationId, {
+          textType: newTextType,
+          style: updatedAlliteration.style,
+        });
+      }
     }
+  };
+
+  const hasAlliterationChanged = () => {
+    if (alliterations.length !== lastSavedAlliterationsRef.current.length) {
+      return true;
+    }
+    for (let i = 0; i < alliterations.length; i++) {
+      if (!deepEqual(alliterations[i], lastSavedAlliterationsRef.current[i])) {
+        return true;
+      }
+    }
+    return false;
   };
 
   return (

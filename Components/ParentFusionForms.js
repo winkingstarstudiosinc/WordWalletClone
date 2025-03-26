@@ -24,14 +24,13 @@ function ParentFusionForms({ onBack, commonColor, addOrangeButton, discoveredCol
   const classIdentifier = 'fusionFormsData';
   const { fusions, setFusions, addFusion, editFusion, deleteFusion } = useFirebase();  
   const [lastSavedFusions, setLastSavedFusions] = useState([]);
-  const lastSavedFusionsRef = useRef([]);
   const [notesDataLoaded, setNotesDataLoaded] = useState(false); // New state to track if notes are already loaded
   const [selectedTextType, setSelectedTextType] = useState('Common'); // Default Text Type for new fusions
   const [editingFusionId, setEditingFusionId] = useState(null);
   const { addNote, editNote, quillEntries } = useFirebase();
   const { saveData, loadStoredData } = useStorage();
-
   const [existingNoteId, setExistingNoteId] = useState(null);
+  const lastSavedFusionsRef = useRef([]);
 
   const deepEqual = (a, b) => {
     if (a === b) {

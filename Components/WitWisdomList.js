@@ -146,7 +146,7 @@ function WitWisdomList({
                   <TouchableOpacity
                     style={styles.editButton}
                     onPress={() =>
-                      onEditInit(index, entry.firstPart.text, entry.secondPart.text, entry.category, entry.textType)
+                      onEditInit(index, entry.firstPart.text, entry.secondPart.text, entry.category, entry.textType, entry.id)
                     }
                     >
                     <Text style={styles.buttonText}>Ed </Text>
@@ -170,7 +170,7 @@ function WitWisdomList({
 const styles = StyleSheet.create({
   buttonText: {
     color: 'white',
-    fontSize: wp(3.5), // Matches 14px
+    fontSize: wp(3.0), // Matches 14px
   },
   controlButtons: {
     flexDirection: 'row',

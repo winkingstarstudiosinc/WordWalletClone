@@ -112,7 +112,7 @@ const styles = StyleSheet.create({
   },
   buttonText: {
     color: 'white',
-    fontSize: wp(3.7), // Converted from 14
+    fontSize: wp(3.0), // Converted from 14
   },
   container: {
     flex: 1,
